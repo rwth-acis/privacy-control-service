@@ -1,0 +1,2 @@
+rootProject.name = 'privacy-control-service'
+include('privacy_control_service')
