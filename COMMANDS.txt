@@ -1,0 +1,10 @@
+startService("i5.las2peer.services.privacyControlService.PrivacyControlService@0.1.0")
+
+solcjs .\smart_contracts\SolidityTest.sol --bin --abi --optimize -o .\smart_contracts\build\
+
+web3j generate solidity -a .\privacy-control-service\smart_contracts\build\smart_contracts_testcontract_sol_SolidityTest.abi -b .\privacy-control-service\smart_contracts\build\smart_contracts_testcontract_sol_SolidityTest.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
+web3j generate solidity -a .\privacy-control-service\smart_contracts\build\SolidityTest.abi -b .\privacy-control-service\smart_contracts\build\SolidityTest.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
+
+./node_modules/.bin/truffle migrate 
+
+java --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED -cp "core/src/main/resources/:core/export/jars/*:restmapper/export/jars/*:webconnector/export/jars/*:core/lib/*:restmapper/lib/*:webconnector/lib/*" i5.las2peer.tools.L2pNodeLauncher --service-directory service --node-id-seed 1 --ethereum-mnemonic "differ employ cook sport clinic wedding melody column pave stuff oak price" startWebConnector interactive "node=getNodeAsEthereumNode()" "registry=node.getRegistryClient()" "n=getNodeAsEthereumNode()" "r=n.getRegistryClient()"
