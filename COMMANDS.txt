@@ -5,6 +5,7 @@ solcjs .\smart_contracts\PrivacyConsentRegistry.sol --bin --abi --optimize -o .\
 web3j generate solidity -a .\privacy-control-service\smart_contracts\build\smart_contracts_testcontract_sol_SolidityTest.abi -b .\privacy-control-service\smart_contracts\build\smart_contracts_testcontract_sol_SolidityTest.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
 web3j generate solidity -a .\privacy-control-service\smart_contracts\build\SolidityTest.abi -b .\privacy-control-service\smart_contracts\build\SolidityTest.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
 web3j generate solidity -a .\privacy-control-service\smart_contracts\build\PrivacyConsentRegistry.abi -b .\privacy-control-service\smart_contracts\build\PrivacyConsentRegistry.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
+web3j generate solidity -a .\privacy-control-service\smart_contracts\build\xAPIVerificationRegistry.abi -b .\privacy-control-service\smart_contracts\build\xAPIVerificationRegistry.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
 
 ./node_modules/.bin/truffle migrate 
 
