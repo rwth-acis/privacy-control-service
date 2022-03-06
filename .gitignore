@@ -1,10 +1,10 @@
-/template_project/output/
-/template_project/export/
+/privacy_control_service/output/
+/privacy_control_service/export/
 /node-storage/
 /.las2peer/
 /tmp/
 /log/
-/template_project/log/
+/privacy_control_service/log/
 /lib/
 /etc/ivy/ivy.jar
 /service/

@@ -1,14 +1,19 @@
 startService("i5.las2peer.services.privacyControlService.PrivacyControlService@0.1.0")
 
 solcjs .\smart_contracts\PrivacyConsentRegistry.sol --bin --abi --optimize -o .\smart_contracts\build\
+solcjs .\smart_contracts\DataProcessingPurposes.sol --bin --abi --optimize -o .\smart_contracts\build\
 
 web3j generate solidity -a .\privacy-control-service\smart_contracts\build\smart_contracts_testcontract_sol_SolidityTest.abi -b .\privacy-control-service\smart_contracts\build\smart_contracts_testcontract_sol_SolidityTest.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
 web3j generate solidity -a .\privacy-control-service\smart_contracts\build\SolidityTest.abi -b .\privacy-control-service\smart_contracts\build\SolidityTest.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
 web3j generate solidity -a .\privacy-control-service\smart_contracts\build\PrivacyConsentRegistry.abi -b .\privacy-control-service\smart_contracts\build\PrivacyConsentRegistry.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
 web3j generate solidity -a .\privacy-control-service\smart_contracts\build\xAPIVerificationRegistry.abi -b .\privacy-control-service\smart_contracts\build\xAPIVerificationRegistry.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
+web3j generate solidity -a .\privacy-control-service\smart_contracts\build\DataProcessingPurposes.abi -b .\privacy-control-service\smart_contracts\build\DataProcessingPurposes.bin  -p i5.las2peer.services.privacyControlService.smartContracts -o .\privacy-control-service\privacy_control_service\src\main\java\
 
 ./node_modules/.bin/truffle migrate 
 
 java --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED -cp "core/src/main/resources/:core/export/jars/*:restmapper/export/jars/*:webconnector/export/jars/*:core/lib/*:restmapper/lib/*:webconnector/lib/*" i5.las2peer.tools.L2pNodeLauncher --service-directory service --node-id-seed 1 --ethereum-mnemonic "differ employ cook sport clinic wedding melody column pave stuff oak price" startWebConnector interactive "node=getNodeAsEthereumNode()" "registry=node.getRegistryClient()" "n=getNodeAsEthereumNode()" "r=n.getRegistryClient()"
 
 testContractAddress="0xC58238a482e929584783d13A684f56Ca5249243E"
+dataProcessingPurposesAddress="0x437e17d8d70c136516473bbf56e686d15f444c2156bcaa8632c5d446fda20260"
+
+docker-compose -f .\ethcompose.yml up

@@ -6,6 +6,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.logging.Level;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
@@ -21,7 +22,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.web3j.abi.datatypes.generated.Bytes32;
 import org.web3j.protocol.core.RemoteFunctionCall;
+import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.tuples.generated.Tuple3;
+import org.web3j.tuples.generated.Tuple4;
 
 import i5.las2peer.api.Context;
 import i5.las2peer.api.security.UserAgent;
@@ -33,6 +36,7 @@ import i5.las2peer.registry.Util;
 import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
 import i5.las2peer.security.ServiceAgentImpl;
+import i5.las2peer.services.privacyControlService.smartContracts.DataProcessingPurposes;
 import i5.las2peer.services.privacyControlService.smartContracts.PrivacyConsentRegistry;
 import i5.las2peer.services.privacyControlService.smartContracts.SolidityTest;
 import io.swagger.annotations.Api;
@@ -43,6 +47,7 @@ import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.License;
 import io.swagger.annotations.SwaggerDefinition;
+import modelPOJOs.Purpose;
 import rice.p2p.util.DebugCommandHandler;
 
 
@@ -74,6 +79,7 @@ public class PrivacyControlService extends RESTService {
 	
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
+	private static DataProcessingPurposes purposesRegistry;
 	
 	
 	public PrivacyControlService() {
@@ -88,11 +94,13 @@ public class PrivacyControlService extends RESTService {
 					code = HttpURLConnection.HTTP_OK,
 					message = "OK") })
 	public Response init() {
+		L2pLogger.setGlobalConsoleLevel(Level.INFO);
 		logger.info("Initializing service...");
 		
 		ServiceAgentImpl agent = (ServiceAgentImpl) Context.getCurrent().getServiceAgent();
         registryClient = ((EthereumNode) agent.getRunningAtNode()).getRegistryClient();
         consentRegistry = registryClient.loadSmartContract(PrivacyConsentRegistry.class, "0xC58238a482e929584783d13A684f56Ca5249243E");
+        purposesRegistry = registryClient.loadSmartContract(DataProcessingPurposes.class, "0x2cCEc92848aA65A79dEa527B0449e4ce6f86472c");
         
         if (consentRegistry == null) {
         	return Response.serverError().entity("Error getting contract.").build();
@@ -147,9 +155,7 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/postConsent")
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response postTemplate() {
-		
-		
+	public Response postTemplate() {		
 		try {
 			String userID = "Ring";
 			String serviceID = "Beat";
@@ -173,6 +179,101 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 			return Response.serverError().entity("Not completed").build();
 		}
+	}
+	
+	@GET
+	@Path("/PurposeList")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getPurposeList() {
+		logger.info("Attempting to retrieve purpose list...");
+		Tuple4<List<BigInteger>, List<String>, List<String>, List<BigInteger>> tuple;
+		List<BigInteger> ids = null;
+		List<String> titles = null;
+		List<String> descriptions = null;
+		List<BigInteger> versions = null; 
+		try {
+			tuple = purposesRegistry.getAllPurposes().send();
+			ids = tuple.component1();
+			titles = tuple.component2();
+			descriptions = tuple.component3();
+			versions = tuple.component4();
+		} catch(Exception e) {
+			logger.severe("Could not retrieve purpose list from chain.");
+			e.printStackTrace();
+			return Response.serverError().build();
+		}
+		
+		logger.info("Purpose list retrieved successfully. Creating JSON as return value...");
+		JSONArray retVal = new JSONArray();
+		if (ids == null || titles == null || descriptions == null || versions == null) {
+			logger.info("List is empy. Returning empty JSONArray.");
+			return Response.ok(retVal.toString()).build();
+		}
+		try {
+			logger.info("There are " + titles.size() + " items on the purpose list.");
+			for (int i = 0; i < ids.size(); i++) {
+				JSONObject tmp = new JSONObject();
+				tmp.put("id", ids.get(i).intValue());
+				logger.info(titles.get(i));
+				tmp.put("title", titles.get(i));
+				tmp.put("description", descriptions.get(i));
+				tmp.put("version", versions.get(i));
+				retVal.put(tmp);
+			}
+		} catch(Exception e) {
+			logger.severe("Error while processing purpose list data into JSON.");
+			e.printStackTrace();
+			return Response.serverError().build();
+		}
+		
+		logger.info("Done.");
+		return Response.ok(retVal.toString()).build();
+	}
+	
+	
+	@GET
+	@Path("/PurposeList/{id}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getPurposeItem(@PathParam(value = "id") int purposeID) {
+		logger.info("Attempting to get purpose with ID: " + purposeID);
+		try {
+			Tuple3<String, String, BigInteger> tuple = purposesRegistry.getPurpose(BigInteger.valueOf(purposeID)).send();
+			Purpose purpose = new Purpose(
+					purposeID,
+					tuple.component1(),
+					tuple.component2(),
+					tuple.component3().intValue()
+					);
+			logger.info("Got Purpose: " + purpose);
+			return Response.ok(purpose.toJSON().toString()).build();
+		} catch (Exception e) {
+			logger.severe("Error while trying to get purpose list item.");
+			e.printStackTrace();
+			return Response.serverError().build();
+		}
+	}
+	
+	
+	@POST
+	@Path("/PurposeList")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response postPurpose(Purpose purpose) {
+		logger.info("Attempting to create or modify purpose: " + purpose);
+		BigInteger id = BigInteger.valueOf(purpose.getId());
+		String title = purpose.getTitle();
+		String description = purpose.getDescription();
+		
+		try {
+			purposesRegistry.createOrModifyPurpose(id, title, description).send();
+		} catch (Exception e) {
+			logger.severe("Error when accessing smart contract, could not create or modify purpose.");
+			e.printStackTrace();
+			return Response.serverError().build();
+		}
+		
+		logger.info("Done.");
+		return Response.ok().build();
 	}
 	
 	
