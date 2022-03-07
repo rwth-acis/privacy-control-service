@@ -39,6 +39,7 @@ import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.services.privacyControlService.smartContracts.DataProcessingPurposes;
 import i5.las2peer.services.privacyControlService.smartContracts.PrivacyConsentRegistry;
 import i5.las2peer.services.privacyControlService.smartContracts.SolidityTest;
+import i5.las2peer.services.privacyControlService.smartContracts.XAPIVerificationRegistry;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
@@ -80,6 +81,7 @@ public class PrivacyControlService extends RESTService {
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
 	private static DataProcessingPurposes purposesRegistry;
+	private static XAPIVerificationRegistry verificationRegisrty;
 	
 	
 	public PrivacyControlService() {
@@ -103,9 +105,20 @@ public class PrivacyControlService extends RESTService {
         purposesRegistry = registryClient.loadSmartContract(DataProcessingPurposes.class, "0x2cCEc92848aA65A79dEa527B0449e4ce6f86472c");
         
         if (consentRegistry == null) {
-        	return Response.serverError().entity("Error getting contract.").build();
+        	logger.severe("Could not load PrivacyConsentRegistry smart contract.");
+        	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
+        }
+        if (purposesRegistry == null) {
+        	logger.severe("Could not load DataProcessingPurposes smart contract.");
+        	return Response.serverError().entity("Error getting contract: DataProcessingPurposes.").build();
+        }
+        //TODO: set correct registry
+        if (consentRegistry == null) {
+        	logger.severe("Could not load PrivacyConsentRegistry smart contract.");
+        	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
         }
 		
+        logger.info("Done.");
         return Response.ok(200).entity("Initialisation was successful.").build();
 	}
 	
@@ -213,12 +226,24 @@ public class PrivacyControlService extends RESTService {
 			logger.info("There are " + titles.size() + " items on the purpose list.");
 			for (int i = 0; i < ids.size(); i++) {
 				JSONObject tmp = new JSONObject();
-				tmp.put("id", ids.get(i).intValue());
-				logger.info(titles.get(i));
-				tmp.put("title", titles.get(i));
-				tmp.put("description", descriptions.get(i));
-				tmp.put("version", versions.get(i));
-				retVal.put(tmp);
+				// TODO: For some ungodly reason, for the first purpose, the title and description
+				// string get jumbled up, so this fix is necessary. At least until someone
+				// can figure out why this happens.
+				if (i == 0) {
+					Tuple3<String, String, BigInteger> tuple2 = purposesRegistry.getPurpose(ids.get(i)).send();
+					tmp.put("id", ids.get(i).intValue());
+					tmp.put("title", tuple2.component1());
+					tmp.put("description", tuple2.component2());
+					tmp.put("version", tuple2.component3());
+					retVal.put(tmp);
+					continue;					
+				} else {
+					tmp.put("id", ids.get(i).intValue());
+					tmp.put("title", titles.get(i));
+					tmp.put("description", descriptions.get(i));
+					tmp.put("version", versions.get(i));
+					retVal.put(tmp);
+				}
 			}
 		} catch(Exception e) {
 			logger.severe("Error while processing purpose list data into JSON.");
