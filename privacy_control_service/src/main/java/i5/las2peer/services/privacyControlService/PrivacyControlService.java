@@ -198,57 +198,32 @@ public class PrivacyControlService extends RESTService {
 	@Path("/PurposeList")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getPurposeList() {
-		logger.info("Attempting to retrieve purpose list...");
-		Tuple4<List<BigInteger>, List<String>, List<String>, List<BigInteger>> tuple;
-		List<BigInteger> ids = null;
-		List<String> titles = null;
-		List<String> descriptions = null;
-		List<BigInteger> versions = null; 
+		logger.info("Attempting to retrieve list of purpose IDs...");
+		List<BigInteger> purposeIDs;
 		try {
-			tuple = purposesRegistry.getAllPurposes().send();
-			ids = tuple.component1();
-			titles = tuple.component2();
-			descriptions = tuple.component3();
-			versions = tuple.component4();
-		} catch(Exception e) {
-			logger.severe("Could not retrieve purpose list from chain.");
-			e.printStackTrace();
+			purposeIDs = purposesRegistry.getAllPurposeIDs().send();
+		}catch (Exception e) {
+			logger.severe("Could not retrieve purpose ID list.");
 			return Response.serverError().build();
 		}
+		logger.info("Received list: " + purposeIDs);
 		
-		logger.info("Purpose list retrieved successfully. Creating JSON as return value...");
 		JSONArray retVal = new JSONArray();
-		if (ids == null || titles == null || descriptions == null || versions == null) {
-			logger.info("List is empy. Returning empty JSONArray.");
-			return Response.ok(retVal.toString()).build();
-		}
-		try {
-			logger.info("There are " + titles.size() + " items on the purpose list.");
-			for (int i = 0; i < ids.size(); i++) {
+		
+		logger.info("Retrieving individual purposes...");
+		for (BigInteger bi : purposeIDs ) {
+			try {
+				Tuple3<String, String, BigInteger> tuple = purposesRegistry.getPurpose(bi).send();
 				JSONObject tmp = new JSONObject();
-				// TODO: For some ungodly reason, for the first purpose, the title and description
-				// string get jumbled up, so this fix is necessary. At least until someone
-				// can figure out why this happens.
-				if (i == 0) {
-					Tuple3<String, String, BigInteger> tuple2 = purposesRegistry.getPurpose(ids.get(i)).send();
-					tmp.put("id", ids.get(i).intValue());
-					tmp.put("title", tuple2.component1());
-					tmp.put("description", tuple2.component2());
-					tmp.put("version", tuple2.component3());
-					retVal.put(tmp);
-					continue;					
-				} else {
-					tmp.put("id", ids.get(i).intValue());
-					tmp.put("title", titles.get(i));
-					tmp.put("description", descriptions.get(i));
-					tmp.put("version", versions.get(i));
-					retVal.put(tmp);
-				}
+				tmp.put("id", bi.intValue());
+				tmp.put("title", tuple.component1());
+				tmp.put("description", tuple.component2());
+				tmp.put("version", tuple.component3());
+				retVal.put(tmp);
+			}catch (Exception e) {
+				logger.severe("Could not retrieve purpose for ID: " + bi.intValue());
 			}
-		} catch(Exception e) {
-			logger.severe("Error while processing purpose list data into JSON.");
-			e.printStackTrace();
-			return Response.serverError().build();
+			logger.info("Successfully retrieved purpose with ID: " + bi.intValue());
 		}
 		
 		logger.info("Done.");

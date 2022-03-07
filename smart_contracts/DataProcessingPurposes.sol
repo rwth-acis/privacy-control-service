@@ -1,6 +1,5 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.5.0;
-pragma experimental ABIEncoderV2;
 
 contract DataProcessingPurposes {
     struct Purpose {
@@ -9,14 +8,10 @@ contract DataProcessingPurposes {
         string description;
         uint16 version;
     }
-    
-    // TODO: Remove these if not needed, or create a constraint
-    uint16 constant public MAX_PURPOSE_DESCRIPTION_SIZE = 500;
-    uint8 constant public MAX_PURPOSE_TITLE_SIZE = 100;
-    
+        
     mapping (uint8 => Purpose) public purposeList;
     uint8[] public purposeIDs;
-    
+/*     
     function getAllPurposes() public view returns(
         	uint8[] memory,
         	string[] memory,
@@ -28,23 +23,27 @@ contract DataProcessingPurposes {
         string[] memory descs = new string[](purposeIDs.length);
         uint16[] memory vers = new uint16[](purposeIDs.length);
         
-        Purpose memory tmp;
         for (uint i = 0; i < purposeIDs.length; i++) {
-            tmp = purposeList[purposeIDs[i]];
-            ids[i] = tmp.id;
-            titles[i] = tmp.title;
-            descs[i] = tmp.description;
-            vers[i] = tmp.version;
+           ids[i] = purposeList[purposeIDs[i]].id;
+           titles[i] = purposeList[purposeIDs[i]].title;
+           descs[i] = purposeList[purposeIDs[i]].description;
+           vers[i] = purposeList[purposeIDs[i]].version;
         }
         
         return (ids, titles, descs, vers);
     }
-    
+   */ 
     function getPurpose(uint8 purposeID) public view returns(
         string memory, string memory, uint16
     ) {
         Purpose memory tmp = purposeList[purposeID];
         return(tmp.title, tmp.description, tmp.version);
+    }
+    
+    function getAllPurposeIDs() public view returns(
+        uint8[] memory
+    ) {
+        return purposeIDs;
     }
     
     function createOrModifyPurpose(
@@ -53,14 +52,12 @@ contract DataProcessingPurposes {
         string memory description
     ) public returns(uint16) {
         uint8 index;
-        bool check = true;
         for (index = 0; index < purposeIDs.length; index++) {
             if(purposeIDs[index] == id) {
-                check = false;
                 break;
             }
         }
-        if (check) {
+        if (index == purposeIDs.length) {
         	purposeIDs.push(id);    
         }
         
