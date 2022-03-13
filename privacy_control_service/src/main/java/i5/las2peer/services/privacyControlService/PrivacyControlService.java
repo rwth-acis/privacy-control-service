@@ -6,6 +6,7 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Random;
 import java.util.logging.Level;
 
 import javax.ws.rs.Consumes;
@@ -48,7 +49,8 @@ import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.License;
 import io.swagger.annotations.SwaggerDefinition;
-import modelPOJOs.Purpose;
+import model.Purpose;
+import model.Student;
 import rice.p2p.util.DebugCommandHandler;
 
 
@@ -83,6 +85,7 @@ public class PrivacyControlService extends RESTService {
 	private static DataProcessingPurposes purposesRegistry;
 	private static XAPIVerificationRegistry verificationRegisrty;
 	
+	private static boolean serviceInitialised = false;
 	
 	public PrivacyControlService() {
 	}
@@ -96,11 +99,16 @@ public class PrivacyControlService extends RESTService {
 					code = HttpURLConnection.HTTP_OK,
 					message = "OK") })
 	public Response init() {
+		if (serviceInitialised) {
+			return Response.ok("Service already initialised.").build();
+		}
+		
 		L2pLogger.setGlobalConsoleLevel(Level.INFO);
 		logger.info("Initializing service...");
 		
 		ServiceAgentImpl agent = (ServiceAgentImpl) Context.getCurrent().getServiceAgent();
         registryClient = ((EthereumNode) agent.getRunningAtNode()).getRegistryClient();
+        // TODO: Put this in environment variables.
         consentRegistry = registryClient.loadSmartContract(PrivacyConsentRegistry.class, "0xC58238a482e929584783d13A684f56Ca5249243E");
         purposesRegistry = registryClient.loadSmartContract(DataProcessingPurposes.class, "0x2cCEc92848aA65A79dEa527B0449e4ce6f86472c");
         
@@ -118,6 +126,7 @@ public class PrivacyControlService extends RESTService {
         	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
         }
 		
+        serviceInitialised = true;
         logger.info("Done.");
         return Response.ok(200).entity("Initialisation was successful.").build();
 	}
@@ -195,7 +204,7 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	@GET
-	@Path("/PurposeList")
+	@Path("/purpose-list")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getPurposeList() {
 		logger.info("Attempting to retrieve list of purpose IDs...");
@@ -232,7 +241,7 @@ public class PrivacyControlService extends RESTService {
 	
 	
 	@GET
-	@Path("/PurposeList/{id}")
+	@Path("/purpose-list/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getPurposeItem(@PathParam(value = "id") int purposeID) {
 		logger.info("Attempting to get purpose with ID: " + purposeID);
@@ -255,7 +264,7 @@ public class PrivacyControlService extends RESTService {
 	
 	
 	@POST
-	@Path("/PurposeList")
+	@Path("/purpose-list")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
 	public Response postPurpose(Purpose purpose) {
@@ -274,6 +283,16 @@ public class PrivacyControlService extends RESTService {
 		
 		logger.info("Done.");
 		return Response.ok().build();
+	}
+	
+	
+	@GET
+	@Path("/pseudonym/{input}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getPseudonym(@PathParam(value = "input") String input) {
+		Random random = new Random();
+		String hash = Student.hash(input, String.valueOf(random.nextGaussian()));
+		return Response.ok(hash).build();
 	}
 	
 	

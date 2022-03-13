@@ -1,4 +1,4 @@
-package modelPOJOs;
+package model;
 
 import org.json.JSONObject;
 

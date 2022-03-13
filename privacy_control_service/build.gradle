@@ -30,6 +30,9 @@ dependencies {
     
     // https://mvnrepository.com/artifact/org.json/json
 	implementation 'org.json:json:20211205'
+	
+	// Gogle Guava - for hashing
+	implementation("com.google.guava:guava:31.1-jre")
 }
 
 configurations {
