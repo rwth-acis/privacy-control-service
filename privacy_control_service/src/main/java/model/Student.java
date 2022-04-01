@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 
+import org.json.JSONObject;
+
 import com.google.common.hash.Hashing;
 
 
@@ -12,10 +14,21 @@ public class Student {
 	private String id;
 	private String name;
 	private String email;
+	
+	// pseudonyms<Course, pseudonym>
 	private Map<Course, String> pseudonyms;
+	// courses<course ID, Course>
+	private Map<String, Course> courses;
 	
 	public Student() {
 		pseudonyms = new HashMap<Course, String>();
+	}
+	
+	public Student(String id, String name, String email) {
+		pseudonyms = new HashMap<Course, String>();
+		this.id = id;
+		this.name = name;
+		this.email = email;
 	}
 
 	public String getId() {
@@ -74,6 +87,15 @@ public class Student {
 		String hash = Student.hash(id, String.valueOf(random.nextGaussian()));
 		pseudonyms.put(course, hash);
 		return hash;
+	}
+	
+	
+	public JSONObject toJSON() {
+		JSONObject retVal = new JSONObject();
+		retVal.put("id", id);
+		retVal.put("name", name);
+		retVal.put("email", email);
+		return retVal;
 	}
 
 }

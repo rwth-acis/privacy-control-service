@@ -4,8 +4,10 @@ import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.logging.Level;
 
@@ -49,10 +51,12 @@ import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.License;
 import io.swagger.annotations.SwaggerDefinition;
+import model.Course;
 import model.Purpose;
+import model.Service;
 import model.Student;
 import rice.p2p.util.DebugCommandHandler;
-
+import java.sql.Connection;
 
 // TODO Describe your own service
 /**
@@ -86,6 +90,9 @@ public class PrivacyControlService extends RESTService {
 	private static XAPIVerificationRegistry verificationRegisrty;
 	
 	private static boolean serviceInitialised = false;
+	
+	private static List<Service> serviceDatabase = new ArrayList<Service>();
+	private static Map<String, Student> studentDatabase = new HashMap<String, Student>();
 	
 	public PrivacyControlService() {
 	}
@@ -125,12 +132,57 @@ public class PrivacyControlService extends RESTService {
         	logger.severe("Could not load PrivacyConsentRegistry smart contract.");
         	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
         }
+        
+        //TODO: Replace this with actual database.
+        makeMockDatabase();
 		
         serviceInitialised = true;
         logger.info("Done.");
         return Response.ok(200).entity("Initialisation was successful.").build();
 	}
 	
+	
+	private void makeMockDatabase() {
+		Service ser1 = new Service("service1", "Service 1");
+		Course cour1 = new Course("course1", "Course 1");
+		Course cour2 = new Course("course2", "Course 2");
+		Student stud1 = new Student("student1", "Alice", "alice@example.com");
+		Student stud2 = new Student("student2", "Bob", "bob@example.com");
+		
+		ser1.putCourse(cour1);
+		cour1.addStudent(stud1);
+		cour1.addStudent(stud2);
+		ser1.putCourse(cour2);
+		cour2.addStudent(stud2);
+		
+		serviceDatabase.add(ser1);
+		studentDatabase.put(stud1.getId(), stud1);
+		studentDatabase.put(stud2.getId(), stud2);
+	}
+	
+	@GET
+	@Path("/consent/{studentid}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getStudentConsentOverview(@PathParam(value = "studentid") String userID) {
+		Student student = studentDatabase.get(userID);
+		if(student == null) {
+			return Response.status(404).entity("Student not found with given ID.").build();
+		}
+		
+		// TODO: Remove temp logic.
+		JSONArray retVal = new JSONArray();
+		for (Service service : serviceDatabase) {
+			JSONObject serviceJSON = service.toJSON();
+			JSONArray coursesJSON = new JSONArray();
+			for (Course course : service.getAllCourses()) {
+				coursesJSON.put(course.toJSON());
+			}
+			serviceJSON.put("courses", coursesJSON);
+			retVal.put(serviceJSON);
+		}
+		
+		return Response.ok().entity(retVal.toString()).build();
+	}
 	
 	@GET
 	@Path("/get/{userid}/{serviceid}/{internalid}")
@@ -172,7 +224,6 @@ public class PrivacyControlService extends RESTService {
 		}		
 		
 	}
-	
 	
 	@GET
 	@Path("/postConsent")
@@ -294,6 +345,7 @@ public class PrivacyControlService extends RESTService {
 		String hash = Student.hash(input, String.valueOf(random.nextGaussian()));
 		return Response.ok(hash).build();
 	}
+	
 	
 	
 //	
