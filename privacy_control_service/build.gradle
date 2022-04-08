@@ -33,6 +33,9 @@ dependencies {
 	
 	// Gogle Guava - for hashing
 	implementation("com.google.guava:guava:31.1-jre")
+	
+	// https://mvnrepository.com/artifact/com.microsoft.sqlserver/mssql-jdbc
+	implementation group: 'com.microsoft.sqlserver', name: 'mssql-jdbc', version: '10.2.0.jre17'
 }
 
 configurations {

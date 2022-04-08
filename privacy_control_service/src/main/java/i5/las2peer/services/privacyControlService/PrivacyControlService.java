@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.logging.Level;
 
+import javax.print.attribute.standard.Media;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -57,6 +58,10 @@ import model.Service;
 import model.Student;
 import rice.p2p.util.DebugCommandHandler;
 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
 // TODO Describe your own service
 /**
@@ -82,12 +87,14 @@ import java.sql.Connection;
 @ServicePath("/pieces")
 public class PrivacyControlService extends RESTService {
 	
-	private final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
+	public final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 	
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
 	private static DataProcessingPurposes purposesRegistry;
 	private static XAPIVerificationRegistry verificationRegisrty;
+	
+	private static DBUtility database;
 	
 	private static boolean serviceInitialised = false;
 	
@@ -95,6 +102,41 @@ public class PrivacyControlService extends RESTService {
 	private static Map<String, Student> studentDatabase = new HashMap<String, Student>();
 	
 	public PrivacyControlService() {
+	}
+	
+	@GET
+	@Path("/testDB")
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response testDB() {
+		String connectionUrl =
+                "jdbc:sqlserver://localhost:1433;"
+                + "database=PrivacyService;"
+                + "user=SA;"
+                + "password=privacyIS#1important!;"
+                + "encrypt=true;"
+                + "trustServerCertificate=true;"
+                + "loginTimeout=30;";
+
+        ResultSet resultSet = null;
+        String retVal = "";
+
+        try (Connection connection = DriverManager.getConnection(connectionUrl);
+                Statement statement = connection.createStatement();) {
+
+            // Create and execute a SELECT SQL statement.
+            String selectSql = "SELECT * from Service";
+            resultSet = statement.executeQuery(selectSql);
+
+            // Print results from select statement
+            while (resultSet.next()) {
+                retVal += resultSet.getInt("id") + " " + resultSet.getString("name") + "\n";
+            }
+        }
+        catch (SQLException e) {
+            e.printStackTrace();
+        }
+		
+		return Response.ok().entity(retVal).build();
 	}
 	
 	
@@ -113,28 +155,39 @@ public class PrivacyControlService extends RESTService {
 		L2pLogger.setGlobalConsoleLevel(Level.INFO);
 		logger.info("Initializing service...");
 		
-		ServiceAgentImpl agent = (ServiceAgentImpl) Context.getCurrent().getServiceAgent();
-        registryClient = ((EthereumNode) agent.getRunningAtNode()).getRegistryClient();
-        // TODO: Put this in environment variables.
-        consentRegistry = registryClient.loadSmartContract(PrivacyConsentRegistry.class, "0xC58238a482e929584783d13A684f56Ca5249243E");
-        purposesRegistry = registryClient.loadSmartContract(DataProcessingPurposes.class, "0x2cCEc92848aA65A79dEa527B0449e4ce6f86472c");
-        
-        if (consentRegistry == null) {
-        	logger.severe("Could not load PrivacyConsentRegistry smart contract.");
-        	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
+//		ServiceAgentImpl agent = (ServiceAgentImpl) Context.getCurrent().getServiceAgent();
+//        registryClient = ((EthereumNode) agent.getRunningAtNode()).getRegistryClient();
+//        // TODO: Put this in environment variables.
+//        consentRegistry = registryClient.loadSmartContract(PrivacyConsentRegistry.class, "0xC58238a482e929584783d13A684f56Ca5249243E");
+//        purposesRegistry = registryClient.loadSmartContract(DataProcessingPurposes.class, "0x2cCEc92848aA65A79dEa527B0449e4ce6f86472c");
+//        
+//        if (consentRegistry == null) {
+//        	logger.severe("Could not load PrivacyConsentRegistry smart contract.");
+//        	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
+//        }
+//        if (purposesRegistry == null) {
+//        	logger.severe("Could not load DataProcessingPurposes smart contract.");
+//        	return Response.serverError().entity("Error getting contract: DataProcessingPurposes.").build();
+//        }
+//        //TODO: set correct registry
+//        if (consentRegistry == null) {
+//        	logger.severe("Could not load PrivacyConsentRegistry smart contract.");
+//        	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
+//        }
+//        
+        //TODO: Put parameters into environment variables
+		database = new DBUtility();
+        boolean db = database.establishConnection("localhost", 1433, "PrivacyService", "SA", "privacyIS#1important!");
+        if (!db) {
+        	PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
+        	return Response.serverError().entity("Error while connecting to service's database").build();
         }
-        if (purposesRegistry == null) {
-        	logger.severe("Could not load DataProcessingPurposes smart contract.");
-        	return Response.serverError().entity("Error getting contract: DataProcessingPurposes.").build();
+        db = database.prepareStatements();
+        if (!db) {
+        	PrivacyControlService.logger.severe("Could not connect prepare database statements.");
+        	return Response.serverError().entity("Database prepared statement error.").build();
+
         }
-        //TODO: set correct registry
-        if (consentRegistry == null) {
-        	logger.severe("Could not load PrivacyConsentRegistry smart contract.");
-        	return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
-        }
-        
-        //TODO: Replace this with actual database.
-        makeMockDatabase();
 		
         serviceInitialised = true;
         logger.info("Done.");
@@ -142,22 +195,53 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	
-	private void makeMockDatabase() {
-		Service ser1 = new Service("service1", "Service 1");
-		Course cour1 = new Course("course1", "Course 1");
-		Course cour2 = new Course("course2", "Course 2");
-		Student stud1 = new Student("student1", "Alice", "alice@example.com");
-		Student stud2 = new Student("student2", "Bob", "bob@example.com");
+	/////////////////////////////////////////////////////////////////////////////////
+	///									CRUD									  ///
+	/////////////////////////////////////////////////////////////////////////////////
+	
+	@POST
+	@Path("/register/service")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response registerService(Service service) {
+		int result = database.InsertService(service);
+		if (result <= 0) {
+			return Response.serverError().entity("Database error.").build();
 		
-		ser1.putCourse(cour1);
-		cour1.addStudent(stud1);
-		cour1.addStudent(stud2);
-		ser1.putCourse(cour2);
-		cour2.addStudent(stud2);
+		} 
 		
-		serviceDatabase.add(ser1);
-		studentDatabase.put(stud1.getId(), stud1);
-		studentDatabase.put(stud2.getId(), stud2);
+		String responseMessage = "Service " + service.getName() + " succesfully registered.";
+		return Response.ok(responseMessage).build();
+	}
+	
+	@POST
+	@Path("/register/course")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response registerCourse(Course course) {
+		int result = database.InsertCourse(course);
+		if (result <= 0) {
+			return Response.serverError().entity("Database error.").build();
+		}
+		
+		String responseMessage = "Course " + course.getName() + " succesfully registered.";
+		return Response.ok(responseMessage).build();
+	}
+	
+	
+	@GET
+	@Path("/service/{serviceID}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getService(@PathParam(value="serviceID") int serviceID) {
+		JSONObject retVal = database.SelectService(serviceID);
+		if (retVal == null) {
+			return Response.serverError().entity("Database error.").build();
+		}
+		if (retVal.isEmpty()) {
+			return Response.status(404).entity("Service not found.").build();
+		}
+		
+		return Response.ok().entity(retVal.toString()).build();
 	}
 	
 	@GET
@@ -169,17 +253,17 @@ public class PrivacyControlService extends RESTService {
 			return Response.status(404).entity("Student not found with given ID.").build();
 		}
 		
-		// TODO: Remove temp logic.
+//		// TODO: Remove temp logic.
 		JSONArray retVal = new JSONArray();
-		for (Service service : serviceDatabase) {
-			JSONObject serviceJSON = service.toJSON();
-			JSONArray coursesJSON = new JSONArray();
-			for (Course course : service.getAllCourses()) {
-				coursesJSON.put(course.toJSON());
-			}
-			serviceJSON.put("courses", coursesJSON);
-			retVal.put(serviceJSON);
-		}
+//		for (Service service : serviceDatabase) {
+//			JSONObject serviceJSON = service.toJSON();
+//			JSONArray coursesJSON = new JSONArray();
+//			for (Course course : service.getAllCourses()) {
+//				coursesJSON.put(course.toJSON());
+//			}
+//			serviceJSON.put("courses", coursesJSON);
+//			retVal.put(serviceJSON);
+//		}
 		
 		return Response.ok().entity(retVal.toString()).build();
 	}
@@ -345,53 +429,4 @@ public class PrivacyControlService extends RESTService {
 		String hash = Student.hash(input, String.valueOf(random.nextGaussian()));
 		return Response.ok(hash).build();
 	}
-	
-	
-	
-//	
-//	/**
-//	 * Template of a get function.
-//	 * 
-//	 * @return Returns an HTTP response with the username as string content.
-//	 */
-//	@GET
-//	@Path("/get")
-//	@Produces(MediaType.TEXT_PLAIN)
-//	public Response getTemplate() {
-//		if (testContract == null) {
-//        	logger.info("IT'S NULL");
-//		}
-//		String counter = "";
-//		try {
-//			counter = testContract.getCounter().send().toString();
-//		} catch (Exception e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}
-////		UserAgent userAgent = (UserAgent) Context.getCurrent().getMainAgent();
-////		String name = userAgent.getLoginName();
-//		return Response.ok().entity(counter).build();
-//	}
-//
-//	/**
-//	 * Template of a post function.
-//	 * 
-//	 * @param myInput The post input the user will provide.
-//	 * @return Returns an HTTP response with plain text string content derived from the path input param.
-//	 */
-//	@POST
-//	@Path("/increment")
-//	public Response postTemplate() {
-//		try {
-//			testContract.incCounter().send();
-//		} catch (Exception e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		}
-//		logger.info("INCREMENTED");
-//		return Response.ok().entity("Incremented").build();
-//	}
-//
-//	// TODO your own service methods, e. g. for RMI
-
 }
