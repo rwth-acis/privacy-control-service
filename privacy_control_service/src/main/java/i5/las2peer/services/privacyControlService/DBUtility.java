@@ -10,7 +10,9 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import model.Course;
+import model.Manager;
 import model.Service;
+import model.Student;
 
 public class DBUtility {
 	public final static String DB_URL = "localhost";
@@ -21,8 +23,11 @@ public class DBUtility {
 	
 	private Connection dbcon = null;
 	
+	private PreparedStatement selectManager;
+	private PreparedStatement insertManager;
 	private PreparedStatement selectService;
 	private PreparedStatement insertService;
+	private PreparedStatement selectManagerServices;
 	private PreparedStatement selectServiceCourses;
 	private PreparedStatement selectCourse;
 	private PreparedStatement insertCourse;
@@ -80,7 +85,25 @@ public class DBUtility {
 			return false;
 		}
 		
-		String text = "SELECT * FROM Service WHERE id=?;";		
+		String text = "SELECT * FROM Manager WHERE Email=?";
+		try {
+			selectManager = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "INSERT INTO Manager (email, name) VALUES (?,?)";
+		try {
+			insertManager = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "SELECT * FROM Service WHERE id=?;";		
 		try {
 			selectService = dbcon.prepareStatement(text);
 		} catch (SQLException e) {
@@ -89,9 +112,18 @@ public class DBUtility {
 			return false;
 		}
 		
-		text = "INSERT INTO Service (id, name) VALUES (?, ?);";
+		text = "INSERT INTO Service (id, name, managerID) VALUES (?, ?, ?);";
 		try {
 			insertService = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "SELECT * FROM Service WHERE managerID=?";
+		try {
+			selectManagerServices = dbcon.prepareStatement(text);
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
 			e.printStackTrace();
@@ -135,7 +167,7 @@ public class DBUtility {
 			return false;
 		}
 		
-		text = "INSERT INTO Student (id, name, email) VALUES (?,?,?);";
+		text = "INSERT INTO Student (email, name) VALUES (?,?);";
 		try {
 			insertStudent = dbcon.prepareStatement(text);
 		} catch (SQLException e) {
@@ -147,9 +179,63 @@ public class DBUtility {
 		return true;
 	}
 	
-	public JSONObject SelectService(int serviceID) {
+	public JSONObject SelectManager(String managerID) {
 		try {
-			selectService.setInt(1, serviceID);
+			selectManager.setString(1, managerID);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting SelectManager parameters.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		ResultSet result;
+		try {
+			result = selectManager.executeQuery();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing SelectManager query.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		JSONObject retVal = new JSONObject();
+		try {
+			if (result.next()) {
+				retVal.put("email", result.getString("email"));
+				retVal.put("name", result.getString("name"));
+			}
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while retrieving SelectCourse results.");
+			e.printStackTrace();
+		}
+		
+		return retVal;
+	}
+	
+	public int InsertManager(Manager manager) {
+		try {
+			insertManager.setString(1, manager.getEmail());
+			insertManager.setString(2, manager.getName());
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting InsertManager parameters.");
+			e.printStackTrace();
+			return -1;
+		}
+		
+		int result = 0;
+		try {
+			result = insertManager.executeUpdate();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing InsertManager statement.");
+			e.printStackTrace();
+		}
+		
+		return result;
+		
+	}
+	
+	public JSONObject SelectService(String serviceID) {
+		try {
+			selectService.setString(1, serviceID);
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while setting SelectService parameters.");
 			e.printStackTrace();
@@ -169,8 +255,9 @@ public class DBUtility {
 		JSONObject retVal = new JSONObject();
 		try {
 			if (result.next()) {
-				retVal.put("id", result.getInt("id"));
+				retVal.put("id", result.getString("id"));
 				retVal.put("name", result.getString("name"));
+				retVal.put("managerID", result.getString("managerID"));
 			}
 			else {
 				return retVal;
@@ -183,7 +270,7 @@ public class DBUtility {
 		//Get courses
 		boolean error = false;
 		try {
-			selectServiceCourses.setInt(1, serviceID);
+			selectServiceCourses.setString(1, serviceID);
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while setting SelectServiceCourses parameters.");
 			e.printStackTrace();
@@ -205,8 +292,8 @@ public class DBUtility {
 			try {
 				while (result.next()) {
 					JSONObject courseJSON = new JSONObject();
-					courseJSON.put("serviceID", result.getInt("serviceID"));
-					courseJSON.put("id", result.getInt("id"));
+					courseJSON.put("serviceID", result.getString("serviceID"));
+					courseJSON.put("id", result.getString("id"));
 					courseJSON.put("name", result.getString("name"));
 					courseJSON.put("description", result.getString("description"));
 					coursesJSON.put(courseJSON);
@@ -223,8 +310,9 @@ public class DBUtility {
 	
 	public int InsertService(Service service) {
 		try {
-			insertService.setInt(1, service.getId());
+			insertService.setString(1, service.getId());
 			insertService.setString(2, service.getName());
+			insertService.setString(3, service.getManagerID());
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while setting InsertService parameters.");
 			e.printStackTrace();
@@ -241,11 +329,44 @@ public class DBUtility {
 		
 		return result;
 	}
+
+	public JSONArray SelectManagerServices(String managerID) {
+		try {
+			selectManagerServices.setString(1, managerID);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting InsertService parameters.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		ResultSet result;
+		try {
+			result = selectManagerServices.executeQuery();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing SelectManagerCourses query.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		JSONArray retVal = new JSONArray();
+		try {
+			while (result.next()) {
+				String serviceID = result.getString("id");
+				JSONObject serviceJSON = SelectService(serviceID);
+				retVal.put(serviceJSON);
+			}
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while retrieving SelectManagerCourses results.");
+			e.printStackTrace();
+		}
+		
+		return retVal;
+	}
 	
 	public int InsertCourse(Course course) {
 		try {
-			insertCourse.setInt(1, course.getServiceID());
-			insertCourse.setInt(2, course.getId());
+			insertCourse.setString(1, course.getServiceID());
+			insertCourse.setString(2, course.getId());
 			insertCourse.setString(3, course.getName());
 			insertCourse.setString(4, course.getDescription());
 		}catch (SQLException e) {
@@ -265,5 +386,25 @@ public class DBUtility {
 		return result;
 	}
 	
+	
+	public int InsertStudent(Student student) {
+		try {
+			insertStudent.setString(1, student.getEmail());
+			insertStudent.setString(2, student.getName());
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting InsertStudent parameters.");
+			e.printStackTrace();
+			return -1;
+		}
+		
+		int result = 0;
+		try {
+			result = insertStudent.executeUpdate();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing InsertStudent statement.");
+			e.printStackTrace();
+		}
+		return result;
+	}
 	
 }

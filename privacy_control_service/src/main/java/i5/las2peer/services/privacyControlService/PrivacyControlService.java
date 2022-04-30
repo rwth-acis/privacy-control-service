@@ -39,6 +39,7 @@ import i5.las2peer.registry.ReadWriteRegistryClient;
 import i5.las2peer.registry.Util;
 import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
+import i5.las2peer.security.Mediator;
 import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.services.privacyControlService.smartContracts.DataProcessingPurposes;
 import i5.las2peer.services.privacyControlService.smartContracts.PrivacyConsentRegistry;
@@ -53,6 +54,7 @@ import io.swagger.annotations.Info;
 import io.swagger.annotations.License;
 import io.swagger.annotations.SwaggerDefinition;
 import model.Course;
+import model.Manager;
 import model.Purpose;
 import model.Service;
 import model.Student;
@@ -110,7 +112,7 @@ public class PrivacyControlService extends RESTService {
 	public Response testDB() {
 		String connectionUrl =
                 "jdbc:sqlserver://localhost:1433;"
-                + "database=PrivacyService;"
+                + "database=PrivacyServiceDB;"
                 + "user=SA;"
                 + "password=privacyIS#1important!;"
                 + "encrypt=true;"
@@ -177,7 +179,7 @@ public class PrivacyControlService extends RESTService {
 //        
         //TODO: Put parameters into environment variables
 		database = new DBUtility();
-        boolean db = database.establishConnection("localhost", 1433, "PrivacyService", "SA", "privacyIS#1important!");
+        boolean db = database.establishConnection("localhost", 1433, "PrivacyServiceDB", "SA", "privacyIS#1important!");
         if (!db) {
         	PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
         	return Response.serverError().entity("Error while connecting to service's database").build();
@@ -200,6 +202,21 @@ public class PrivacyControlService extends RESTService {
 	/////////////////////////////////////////////////////////////////////////////////
 	
 	@POST
+	@Path("/register/manager")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response registerManager(Manager manager) {
+		int result = database.InsertManager(manager);
+		if (result <= 0) {
+			return Response.serverError().entity("Database error.").build();
+		
+		} 
+		
+		String responseMessage = "Manager " + manager.getName() + " succesfully registered.";
+		return Response.ok(responseMessage).build();
+	}
+	
+	@POST
 	@Path("/register/service")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
@@ -207,11 +224,37 @@ public class PrivacyControlService extends RESTService {
 		int result = database.InsertService(service);
 		if (result <= 0) {
 			return Response.serverError().entity("Database error.").build();
-		
 		} 
 		
 		String responseMessage = "Service " + service.getName() + " succesfully registered.";
 		return Response.ok(responseMessage).build();
+	}
+	
+	@GET
+	@Path("/service/{serviceID}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getService(@PathParam(value="serviceID") String serviceID) {
+		JSONObject retVal = database.SelectService(serviceID);
+		if (retVal == null) {
+			return Response.serverError().entity("Database error.").build();
+		}
+		if (retVal.isEmpty()) {
+			return Response.status(404).entity("Service not found.").build();
+		}
+		
+		return Response.ok().entity(retVal.toString()).build();
+	}
+	
+	@GET
+	@Path("/manager/{managerid}/services")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getManagerServices(@PathParam(value="managerid") String managerID) {
+		JSONArray retVal = database.SelectManagerServices(managerID);
+		if (retVal == null) {
+			return Response.serverError().entity("Database error.").build();
+		}
+		
+		return Response.ok().entity(retVal.toString()).build();
 	}
 	
 	@POST
@@ -227,21 +270,41 @@ public class PrivacyControlService extends RESTService {
 		String responseMessage = "Course " + course.getName() + " succesfully registered.";
 		return Response.ok(responseMessage).build();
 	}
+
 	
-	
-	@GET
-	@Path("/service/{serviceID}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response getService(@PathParam(value="serviceID") int serviceID) {
-		JSONObject retVal = database.SelectService(serviceID);
-		if (retVal == null) {
+	@POST
+	@Path("/register/student")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response registerStudent(Student student) {
+		int result = database.InsertStudent(student);
+		if (result <= 0) {
 			return Response.serverError().entity("Database error.").build();
 		}
-		if (retVal.isEmpty()) {
-			return Response.status(404).entity("Service not found.").build();
-		}
 		
-		return Response.ok().entity(retVal.toString()).build();
+		String responseMessage = "Student " + student.getEmail() + " succesfully registered.";
+		return Response.ok(responseMessage).build();
+	}
+	
+	
+	@POST
+	@Path("/register/purpose-in-course/{purposeid}/{courseid}/{serviceid}")
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response registerPurposeInCourse(
+			@PathParam(value = "purposeid") int purposeID,
+			@PathParam(value = "courseid") int courseID,
+			@PathParam(value = "serviceid") int serviceID
+			) {
+		
+		
+		
+		String responseMessage = "Purpose with ID "
+								+ purposeID
+								+ " succesfully added to course with ID "
+								+ serviceID 
+								+ "|"
+								+ courseID;
+		return Response.ok(responseMessage).build();
 	}
 	
 	@GET
@@ -269,27 +332,27 @@ public class PrivacyControlService extends RESTService {
 	}
 	
 	@GET
-	@Path("/get/{userid}/{serviceid}/{internalid}")
+	@Path("/get/{userid}/{serviceid}/{courseid}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getTemplate(@PathParam(value = "userid") String userID,
-			@PathParam(value = "serviceid") String serviceID, @PathParam(value = "internalid") String internalID) {
+			@PathParam(value = "serviceid") String serviceID, @PathParam(value = "courseid") String courseID) {
 		
 		try {
 			byte[] bUserID = Util.soliditySha3(userID);
 			byte[] bServiceID = Util.soliditySha3(serviceID);
-			byte[] bInternalID = Util.soliditySha3(internalID);
+			byte[] bCourseID = Util.soliditySha3(courseID);
 			
 			logger.info("GET user: " + userID + " is " + bUserID.toString());
 			logger.info("GET service:  " + serviceID + " is " + bServiceID.toString());
-			logger.info("GET internal: " + internalID + " is " + bInternalID.toString());
+			logger.info("GET course: " + courseID + " is " + bCourseID.toString());
 			
-			Tuple3<List<BigInteger>, BigInteger, BigInteger> tmpTuple =  consentRegistry.getConsentInfo(bUserID, bServiceID, bInternalID).send();
+			Tuple3<List<BigInteger>, BigInteger, BigInteger> tmpTuple =  consentRegistry.getConsentInfo(bUserID, bServiceID, bCourseID).send();
 			logger.info("Tupple info: " + tmpTuple.component1().toString() + " " + tmpTuple.component2() + " " + tmpTuple.component3());
 			
 			JSONObject retVal = new JSONObject();
 			retVal.put("userID", userID);
 			retVal.put("serviceID", serviceID);
-			retVal.put("internalID", internalID);
+			retVal.put("courseID", courseID);
 			JSONArray purposesJSON = new JSONArray();
 			for (BigInteger bi : tmpTuple.component1()) {
 				purposesJSON.put(bi.intValue());

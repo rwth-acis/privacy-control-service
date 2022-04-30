@@ -4,24 +4,24 @@ import org.json.JSONObject;
 
 
 public class Course {
-	private int serviceID;
-	private int id;
+	private String serviceID;
+	private String id;
 	private String name;
 	private String description;
 	
 	public Course() {}
 	
-	public Course(int serviceID, int id, String name) {
+	public Course(String serviceID, String id, String name) {
 		this.serviceID = serviceID;
 		this.id = id;
 		this.name = name;
 	}
 
-	public int getId() {
+	public String getId() {
 		return id;
 	}
 
-	public void setId(int id) {
+	public void setId(String id) {
 		this.id = id;
 	}
 
@@ -33,11 +33,11 @@ public class Course {
 		this.name = name;
 	}
 	
-	public int getServiceID() {
+	public String getServiceID() {
 		return serviceID;
 	}
 
-	public void setServiceID(int serviceID) {
+	public void setServiceID(String serviceID) {
 		this.serviceID = serviceID;
 	}
 

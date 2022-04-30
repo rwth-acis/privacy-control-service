@@ -11,32 +11,20 @@ import com.google.common.hash.Hashing;
 
 
 public class Student {
-	private String id;
+	private String email; //PK
 	private String name;
-	private String email;
 	
 	// pseudonyms<Course, pseudonym>
 	private Map<Course, String> pseudonyms;
-	// courses<course ID, Course>
-	private Map<String, Course> courses;
 	
 	public Student() {
 		pseudonyms = new HashMap<Course, String>();
 	}
 	
-	public Student(String id, String name, String email) {
+	public Student(String email, String name) {
 		pseudonyms = new HashMap<Course, String>();
-		this.id = id;
-		this.name = name;
 		this.email = email;
-	}
-
-	public String getId() {
-		return id;
-	}
-
-	public void setId(String id) {
-		this.id = id;
+		this.name = name;		
 	}
 
 	public String getName() {
@@ -84,7 +72,7 @@ public class Student {
 	
 	public String createPseudonym(Course course) {
 		Random random = new Random();
-		String hash = Student.hash(id, String.valueOf(random.nextGaussian()));
+		String hash = Student.hash(email, String.valueOf(random.nextGaussian()));
 		pseudonyms.put(course, hash);
 		return hash;
 	}
@@ -92,7 +80,6 @@ public class Student {
 	
 	public JSONObject toJSON() {
 		JSONObject retVal = new JSONObject();
-		retVal.put("id", id);
 		retVal.put("name", name);
 		retVal.put("email", email);
 		return retVal;

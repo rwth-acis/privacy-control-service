@@ -25,6 +25,7 @@ Database:
 docker-compose -f .\sql-compose.yml exec mssql /bin/bash
 /opt/mssql-tools/bin/sqlcmd -S localhost -U SA
 
+CREATE DATABASE PrivacyServiceDB; GO
 docker ps
 docker cp .\CreateModelDatabase.sql 4a13510bf2f5:/var/opt/mssql
 /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -i /var/opt/mssql/CreateModelDatabase.sql

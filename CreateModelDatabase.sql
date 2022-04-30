@@ -1,57 +1,41 @@
-CREATE DATABASE PrivacyService;
+USE PrivacyServiceDB;
+
+-- ************************************** [Manager]
+CREATE TABLE [Manager]
+(
+ [Email] varchar(50) NOT NULL ,
+ [Name]  varchar(50) NULL ,
+
+
+ CONSTRAINT [PK_65] PRIMARY KEY CLUSTERED ([Email] ASC)
+);
 GO
 
-USE PrivacyService;
-GO
-
+-- ************************************** [Service]
 CREATE TABLE [Service]
 (
- [id]   int NOT NULL ,
- [Name] varchar(50) NOT NULL ,
+ [id]        varchar(100) NOT NULL ,
+ [Name]      varchar(50) NULL ,
+ [ManagerID] varchar(50) NOT NULL ,
 
 
- CONSTRAINT [PK_5] PRIMARY KEY CLUSTERED ([id] ASC)
+ CONSTRAINT [PK_5] PRIMARY KEY CLUSTERED ([id] ASC),
+ CONSTRAINT [FK_67] FOREIGN KEY ([ManagerID])  REFERENCES [Manager]([Email])
 );
 GO
 
-CREATE TABLE [Course]
-(
- [id]          int NOT NULL ,
- [ServiceID]   int NOT NULL ,
- [Name]        varchar(50) NOT NULL ,
- [Description] varchar(500) ,
-
-
- CONSTRAINT [PK_8] PRIMARY KEY CLUSTERED ([id] ASC, [ServiceID] ASC),
- CONSTRAINT [CourseService] FOREIGN KEY ([ServiceID])  REFERENCES [Service]([id])
-);
-GO
-
+-- ************************************** [Student]
 CREATE TABLE [Student]
 (
- [id]    int NOT NULL ,
- [Name]  varchar(50) NOT NULL ,
  [Email] varchar(50) NOT NULL ,
+ [Name]  varchar(50) NULL ,
 
 
- CONSTRAINT [PK_19] PRIMARY KEY CLUSTERED ([id] ASC)
+ CONSTRAINT [PK_19] PRIMARY KEY CLUSTERED ([Email] ASC)
 );
 GO
 
-CREATE TABLE [StudentInCourse]
-(
- [StudentID] int NOT NULL ,
- [CourseID]  int NOT NULL ,
- [ServiceID] int NOT NULL ,
- [Pseudonym] varchar(70) NOT NULL ,
-
-
- CONSTRAINT [PK_29] PRIMARY KEY CLUSTERED ([StudentID] ASC, [CourseID] ASC, [ServiceID] ASC),
- CONSTRAINT [SICCourse] FOREIGN KEY ([CourseID], [ServiceID])  REFERENCES [Course]([id], [ServiceID]),
- CONSTRAINT [SICStudent] FOREIGN KEY ([StudentID])  REFERENCES [Student]([id])
-);
-GO
-
+-- ************************************** [Purpose]
 CREATE TABLE [Purpose]
 (
  [ID]          int NOT NULL ,
@@ -64,10 +48,40 @@ CREATE TABLE [Purpose]
 );
 GO
 
+-- ************************************** [Course]
+CREATE TABLE [Course]
+(
+ [id]          varchar(50) NOT NULL ,
+ [ServiceID]   varchar(100) NOT NULL ,
+ [Name]        varchar(50) NULL ,
+ [Description] varchar(500) NULL ,
+
+
+ CONSTRAINT [PK_8] PRIMARY KEY CLUSTERED ([id] ASC, [ServiceID] ASC),
+ CONSTRAINT [CourseService] FOREIGN KEY ([ServiceID])  REFERENCES [Service]([id])
+);
+GO
+
+-- ************************************** [StudentInCourse]
+CREATE TABLE [StudentInCourse]
+(
+ [StudentID] varchar(50) NOT NULL ,
+ [CourseID]  varchar(50) NOT NULL ,
+ [ServiceID] varchar(100) NOT NULL ,
+ [Pseudonym] varchar(70) NOT NULL ,
+
+
+ CONSTRAINT [PK_29] PRIMARY KEY CLUSTERED ([StudentID] ASC, [CourseID] ASC, [ServiceID] ASC),
+ CONSTRAINT [SICCourse] FOREIGN KEY ([CourseID], [ServiceID])  REFERENCES [Course]([id], [ServiceID]),
+ CONSTRAINT [SICStudent] FOREIGN KEY ([StudentID])  REFERENCES [Student]([Email])
+);
+GO
+
+-- ************************************** [PurposeInCourse]
 CREATE TABLE [PurposeInCourse]
 (
- [CourseID]  int NOT NULL ,
- [ServiceID] int NOT NULL ,
+ [CourseID]  varchar(50) NOT NULL ,
+ [ServiceID] varchar(100) NOT NULL ,
  [PurposeID] int NOT NULL ,
 
 
@@ -77,13 +91,14 @@ CREATE TABLE [PurposeInCourse]
 );
 GO
 
+-- ************************************** [Consent]
 CREATE TABLE [Consent]
 (
- [StudentID]   int NOT NULL ,
- [CourseID]    int NOT NULL ,
- [ServiceID]   int NOT NULL ,
- [CourseID_1]  int NOT NULL ,
- [ServiceID_1] int NOT NULL ,
+ [StudentID]   varchar(50) NOT NULL ,
+ [CourseID]    varchar(50) NOT NULL ,
+ [ServiceID]   varchar(100) NOT NULL ,
+ [CourseID_1]  varchar(50) NOT NULL ,
+ [ServiceID_1] varchar(100) NOT NULL ,
  [PurposeID]   int NOT NULL ,
  [Timestamp]   datetime NOT NULL ,
 

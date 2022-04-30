@@ -2,16 +2,17 @@ package model;
 import org.json.JSONObject;
 
 public class Service {
-	private int id;
+	private String id;
 	private String name;
+	private String managerID;
 	
 	public Service() {}
 
-	public int getId() {
+	public String getId() {
 		return id;
 	}
 
-	public void setId(int id) {
+	public void setId(String id) {
 		this.id = id;
 	}
 
@@ -23,6 +24,14 @@ public class Service {
 		this.name = name;
 	}
 	
+	public String getManagerID() {
+		return managerID;
+	}
+
+	public void setManagerID(String managerID) {
+		this.managerID = managerID;
+	}
+
 	public JSONObject toJSON() {
 		JSONObject retVal = new JSONObject();
 		retVal.put("id", id);
