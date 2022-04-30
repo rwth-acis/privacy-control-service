@@ -22,8 +22,7 @@ dataProcessingPurposesAddress="0x437e17d8d70c136516473bbf56e686d15f444c2156bcaa8
 docker-compose -f .\ethcompose.yml up
 
 Database:
-docker-compose -f .\sql-compose.yml exec mssql /bin/bash
-/opt/mssql-tools/bin/sqlcmd -S localhost -U SA
+docker-compose -f .\Docker\sql-compose.yml exec mssql /opt/mssql-tools/bin/sqlcmd -S localhost -U SA
 
 CREATE DATABASE PrivacyServiceDB; GO
 docker ps

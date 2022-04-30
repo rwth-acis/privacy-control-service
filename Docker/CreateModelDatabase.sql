@@ -1,3 +1,6 @@
+CREATE DATABASE PrivacyServiceDB;
+GO
+
 USE PrivacyServiceDB;
 
 -- ************************************** [Manager]
