@@ -13,5 +13,17 @@ services:
     volumes:
       - ethereumStoragePersistent:/root/.ethereum/devchain
     command: /root/start.sh
+  mssql:
+    container_name: mssql
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    user: root
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: "privacyIS#1important!"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - mssql-data:/var/opt/mssql/data
 volumes:
   ethereumStoragePersistent: {}
+  mssql-data:
