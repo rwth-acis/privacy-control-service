@@ -4,8 +4,8 @@ import org.json.JSONObject;
 
 
 public class Course {
-	private String serviceID;
-	private String id;
+	private String serviceID; //PK
+	private String id;		  //PK
 	private String name;
 	private String description;
 	

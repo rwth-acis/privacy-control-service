@@ -1,7 +1,7 @@
 package model;
 
 public class Manager {
-	private String email;
+	private String email;	//PK
 	private String name;
 	
 	public Manager() {}

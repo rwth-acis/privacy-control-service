@@ -2,16 +2,13 @@ package i5.las2peer.services.privacyControlService;
 
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.logging.Level;
 
-import javax.print.attribute.standard.Media;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -21,33 +18,22 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import javax.xml.bind.DatatypeConverter;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.web3j.abi.datatypes.generated.Bytes32;
-import org.web3j.protocol.core.RemoteFunctionCall;
-import org.web3j.protocol.core.methods.response.TransactionReceipt;
 import org.web3j.tuples.generated.Tuple3;
-import org.web3j.tuples.generated.Tuple4;
 
 import i5.las2peer.api.Context;
-import i5.las2peer.api.security.UserAgent;
-import i5.las2peer.classLoaders.Logger;
 import i5.las2peer.logging.L2pLogger;
 import i5.las2peer.p2p.EthereumNode;
 import i5.las2peer.registry.ReadWriteRegistryClient;
 import i5.las2peer.registry.Util;
 import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
-import i5.las2peer.security.Mediator;
 import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.services.privacyControlService.smartContracts.DataProcessingPurposes;
 import i5.las2peer.services.privacyControlService.smartContracts.PrivacyConsentRegistry;
-import i5.las2peer.services.privacyControlService.smartContracts.SolidityTest;
-import i5.las2peer.services.privacyControlService.smartContracts.XAPIVerificationRegistry;
 import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 import io.swagger.annotations.Contact;
@@ -59,12 +45,6 @@ import model.Manager;
 import model.Purpose;
 import model.Service;
 import model.Student;
-import rice.p2p.util.DebugCommandHandler;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 
 // TODO Describe your own service
 /**
@@ -87,14 +67,11 @@ public class PrivacyControlService extends RESTService {
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
 	private static DataProcessingPurposes purposesRegistry;
-	private static XAPIVerificationRegistry verificationRegisrty;
+	//private static XAPIVerificationRegistry verificationRegisrty;
 
 	private static DBUtility database;
 
 	private static boolean serviceInitialised = false;
-
-	private static List<Service> serviceDatabase = new ArrayList<Service>();
-	private static Map<String, Student> studentDatabase = new HashMap<String, Student>();
 
 	public PrivacyControlService() {
 	}
@@ -189,7 +166,7 @@ public class PrivacyControlService extends RESTService {
 	@Path("/service/{serviceID}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getService(@PathParam(value = "serviceID") String serviceID) {
-		JSONObject retVal = database.SelectService(serviceID);
+		JSONObject retVal = database.SelectServiceWithCourses(serviceID);
 		if (retVal == null) {
 			return Response.serverError().entity("Database error.").build();
 		}
@@ -270,39 +247,112 @@ public class PrivacyControlService extends RESTService {
 		return Response.ok(responseMessage).build();
 	}
 
+	// PURPOSE IN COURSE
+	
+	//TODO: ADD MULTIPLE ADDITION AND DELETION
 	@POST
-	@Path("/register/purpose-in-course/{purposeid}/{courseid}/{serviceid}")
+	@Path("/register/purpose-in-course/{purposeid}/{serviceid}/{courseid}")
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response registerPurposeInCourse(@PathParam(value = "purposeid") int purposeID,
-			@PathParam(value = "courseid") int courseID, @PathParam(value = "serviceid") int serviceID) {
+	public Response registerPurposeInCourse(
+			@PathParam(value = "purposeid") int purposeID,
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID) {
 
+		int result = database.InsertPurposeInCourse(purposeID, serviceID, courseID);
+		if (result <= 0) {
+			return Response.serverError().entity("Database error.").build();
+		}
+		
 		String responseMessage = "Purpose with ID " + purposeID + " succesfully added to course with ID " + serviceID
 				+ "|" + courseID;
 		return Response.ok(responseMessage).build();
 	}
+	
+	@GET
+	@Path("/purpose-in-course/{serviceid}/{courseid}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getPurposesInCourse(
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID) {
+		
+		List<Integer> result = database.SelectPurposesInCourse(serviceID, courseID);
+		if (result == null) {
+			return Response.serverError().entity("Database error").build();
+		}
+		
+		JSONArray retVal = new JSONArray();
+		for (int id : result) {
+			Purpose purpose = getPurposeBlockchain(id);
+			if (purpose != null) {
+				retVal.put(purpose.toJSON());
+			}
+			else {
+				logger.severe("Error while retrieving purpose with ID=" + id + ". "
+						+ "Possible incosistency of blockchain and database.");
+			}
+		}
+		
+		return Response.ok().entity(retVal.toString()).build();
+	}
 
+	// STUDENT IN COURSE
+	
+	@GET
+	@Path("/student-in-course/{serviceid}/{courseid}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getStudentsInCourse(
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID) {
+		JSONArray result = database.SelectStudentsInCourse(serviceID, courseID);
+		if (result == null) {
+			return Response.serverError().entity("Database error").build();
+		}
+		
+		return Response.ok().entity(result.toString()).build();
+	}
+	
+	@POST
+	@Path("/register/student-in-course/{serviceid}/{courseid}")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response registerStudentInCourse(
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID,
+			Student student) {
+		// See if user exists in DB
+		JSONObject resultStudent = database.SelectStudent(student.getEmail());
+		if (resultStudent.isEmpty()) {
+			// Not in DB, so have to add
+			int result = database.InsertStudent(student);
+			if (result <= 0) {
+				return Response.serverError().entity("Database error.").build();
+			}
+			logger.info("Created " + student.toString());
+		}
+		
+		
+		// First create hash
+		String pseudonym = HashUtility.hashWithRandomSalt(student.getEmail());
+		
+		// Then enter into DB
+		int result = database.InsertStudentInCourse(student.getEmail(), serviceID, courseID, pseudonym);
+		if (result <= 0) {
+			return Response.serverError().entity("Database error.").build();
+		}
+		
+		String responseMessage = "Student with ID " + student.getEmail() + " succesfully added to course with ID " + serviceID
+				+ "|" + courseID;
+		return Response.ok(responseMessage).build();
+	}
+	
+	
 	@GET
 	@Path("/consent/{studentid}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getStudentConsentOverview(@PathParam(value = "studentid") String userID) {
-		Student student = studentDatabase.get(userID);
-		if (student == null) {
-			return Response.status(404).entity("Student not found with given ID.").build();
-		}
-
-//		// TODO: Remove temp logic.
-		JSONArray retVal = new JSONArray();
-//		for (Service service : serviceDatabase) {
-//			JSONObject serviceJSON = service.toJSON();
-//			JSONArray coursesJSON = new JSONArray();
-//			for (Course course : service.getAllCourses()) {
-//				coursesJSON.put(course.toJSON());
-//			}
-//			serviceJSON.put("courses", coursesJSON);
-//			retVal.put(serviceJSON);
-//		}
-
-		return Response.ok().entity(retVal.toString()).build();
+	public Response getStudentConsentOverview(@PathParam(value = "studentid") String studentID) {
+		JSONArray result = database.SelectCoursesWithStudent(studentID);
+		
+		return Response.ok().entity(result.toString()).build();
 	}
 
 	@GET
@@ -377,6 +427,7 @@ public class PrivacyControlService extends RESTService {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	@GET
 	@Path("/purpose-list")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -412,11 +463,8 @@ public class PrivacyControlService extends RESTService {
 		logger.info("Done.");
 		return Response.ok(retVal.toString()).build();
 	}
-
-	@GET
-	@Path("/purpose-list/{id}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response getPurposeItem(@PathParam(value = "id") int purposeID) {
+	
+	public Purpose getPurposeBlockchain(int purposeID) {
 		logger.info("Attempting to get purpose with ID: " + purposeID);
 		try {
 			Tuple3<String, String, BigInteger> tuple = purposesRegistry.getPurpose(BigInteger.valueOf(purposeID))
@@ -424,10 +472,23 @@ public class PrivacyControlService extends RESTService {
 			Purpose purpose = new Purpose(purposeID, tuple.component1(), tuple.component2(),
 					tuple.component3().intValue());
 			logger.info("Got Purpose: " + purpose);
-			return Response.ok(purpose.toJSON().toString()).build();
+			return purpose;
 		} catch (Exception e) {
 			logger.severe("Error while trying to get purpose list item.");
 			e.printStackTrace();
+			return null;
+		}
+	}
+
+	@GET
+	@Path("/purpose-list/{id}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getPurposeItem(@PathParam(value = "id") int purposeID) {
+		Purpose retVal = getPurposeBlockchain(purposeID);
+		if (retVal != null) {
+			return Response.ok(retVal.toJSON().toString()).build();
+		}
+		else {
 			return Response.serverError().build();
 		}
 	}
@@ -449,6 +510,25 @@ public class PrivacyControlService extends RESTService {
 			e.printStackTrace();
 			return Response.serverError().build();
 		}
+		
+		logger.info("Successfuly committed purpose to blockchain, now committing to database...");
+		
+		// If not in DB insert, else update
+		JSONObject purposeInDB = database.SelectPurpose(purpose.getId());
+		if (purposeInDB.isEmpty()) {
+			int result = database.InsertPurpose(purpose);
+			if (result <= 0) {
+				logger.severe("Could not insert Purpose: " + purpose.toString() + " into database.");
+				return Response.serverError().entity("Database error.").build();
+			}
+		}
+		else {
+			int result = database.UpdatePurpose(purpose);
+			if (result <= 0) {
+				logger.severe("Could not update Purpose: " + purpose.toString() + " in database.");
+				return Response.serverError().entity("Database error.").build();
+			}
+		}
 
 		logger.info("Done.");
 		return Response.ok().build();
@@ -459,7 +539,7 @@ public class PrivacyControlService extends RESTService {
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getPseudonym(@PathParam(value = "input") String input) {
 		Random random = new Random();
-		String hash = Student.hash(input, String.valueOf(random.nextGaussian()));
+		String hash = HashUtility.hash(input, String.valueOf(random.nextInt()));
 		return Response.ok(hash).build();
 	}
 }

@@ -3,7 +3,7 @@ package model;
 import org.json.JSONObject;
 
 public class Purpose {
-	private int id;
+	private int id;		//PK
 	private String title;
 	private String description;
 	private int version;

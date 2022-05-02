@@ -2,9 +2,9 @@ package model;
 import org.json.JSONObject;
 
 public class Service {
-	private String id;
+	private String id;		  //PK
 	private String name;
-	private String managerID;
+	private String managerID; //FK
 	
 	public Service() {}
 
