@@ -94,7 +94,7 @@ CREATE TABLE [PurposeInCourse]
 );
 GO
 
--- ************************************** [Consent]
+-- ************************************** [Consent] TODO: REMOVE!
 CREATE TABLE [Consent]
 (
  [StudentID]   varchar(50) NOT NULL ,

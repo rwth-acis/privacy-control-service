@@ -658,8 +658,10 @@ public class DBUtility {
 				serviceCourses.put(courseJSON);
 			}
 			// for last result
-			serviceJSON.put("courses", serviceCourses);
-			retVal.put(serviceJSON);
+			if (serviceJSON != null) {
+				serviceJSON.put("courses", serviceCourses);
+				retVal.put(serviceJSON);
+			}			
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while retrieving SelectCoursesWithStudent results.");
 			e.printStackTrace();
