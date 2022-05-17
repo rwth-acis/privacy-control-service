@@ -81,8 +81,8 @@ public class PrivacyControlService extends RESTService {
 
 	public PrivacyControlService() {
 	}
-
-	@GET
+	
+	@POST
 	@Path("/init")
 	@Produces(MediaType.TEXT_PLAIN)
 	@ApiResponses(value = { @ApiResponse(code = HttpURLConnection.HTTP_OK, message = "OK") })
@@ -133,6 +133,15 @@ public class PrivacyControlService extends RESTService {
 		serviceInitialised = true;
 		logger.info("Done.");
 		return Response.ok(200).entity("Initialisation was successful.").build();
+	}
+	
+	@GET
+	@Path("/init")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getInit() {
+		JSONObject retVal = new JSONObject();
+		retVal.put("initialised", serviceInitialised);
+		return Response.ok().entity(retVal.toString()).build();
 	}
 
 	/////////////////////////////////////////////////////////////////////////////////
@@ -287,25 +296,59 @@ public class PrivacyControlService extends RESTService {
 
 	// PURPOSE IN COURSE
 	
-	//TODO: ADD MULTIPLE ADDITION AND DELETION
 	@POST
-	@Path("/register/purpose-in-course/{purposeid}/{serviceid}/{courseid}")
+	@Path("/register/purpose-in-course")
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response registerPurposeInCourse(
-			@PathParam(value = "purposeid") int purposeID,
-			@PathParam(value = "serviceid") String serviceID,
-			@PathParam(value = "courseid") String courseID) {
+	public Response registerPurposesInCourse(InputStream input) {
 		
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
 		
-		int result = database.InsertPurposeInCourse(purposeID, serviceID, courseID);
-		if (result <= 0) {
+		JSONTokener tokener = new JSONTokener(input);
+		JSONObject picJSON = null;
+		try {
+			picJSON = new JSONObject(tokener);
+		} catch (JSONException e) {
+			logger.warning("Could not parse JSON in POST purpose in course request.");
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		logger.info(picJSON.toString());
+		String courseID;
+		String serviceID;
+		List<Integer> purposeIDs = new ArrayList<Integer>();
+		try {
+			courseID = picJSON.getString("courseID");
+			logger.info(courseID);
+			serviceID = picJSON.getString("serviceID");
+			logger.info(serviceID);
+			for (Object x : picJSON.getJSONArray("purposes").toList()) {
+				purposeIDs.add((int) x);
+				logger.info("aa");
+			}
+		} catch (JSONException e) {
+			logger.warning("Mandatory fields not found in request JSON.");
+			e.printStackTrace();
+			return Response.status(400).entity("Invalid JSON.").build();
+		} catch (ClassCastException e) {
+			logger.warning("Purpose list contains non-integer ids.");
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		// First delete current registration
+		int resultDelete = database.DeletePurposesInCourse(serviceID, courseID);
+		if (resultDelete < 0) {
 			return Response.serverError().entity("Database error.").build();
 		}
 		
-		String responseMessage = "Purpose with ID " + purposeID + " succesfully added to course with ID " + serviceID
+		// Then add new list
+		int[] result = database.InsertPurposesInCourse(purposeIDs, serviceID, courseID);
+		if (result == null) {
+			return Response.serverError().entity("Database error.").build();
+		}
+		
+		String responseMessage = "Purposes succesfully added to course with ID " + serviceID
 				+ "|" + courseID;
 		return Response.ok(responseMessage).build();
 	}
@@ -420,7 +463,7 @@ public class PrivacyControlService extends RESTService {
 	}
 
 	@GET
-	@Path("/get/{userid}/{serviceid}/{courseid}")
+	@Path("/consent/{userid}/{serviceid}/{courseid}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getTemplate(@PathParam(value = "userid") String userID,
 			@PathParam(value = "serviceid") String serviceID, @PathParam(value = "courseid") String courseID) {
@@ -532,7 +575,6 @@ public class PrivacyControlService extends RESTService {
 		}
 		
 		try {
-			// TODO: Get version for each purpose from DB/BC.
 			consentRegistry.storeConsent(bStudentID, bServiceID, bCourseID, purposes, purposeVersions).send();
 		} catch (Exception e) {
 			e.printStackTrace();

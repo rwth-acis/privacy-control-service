@@ -42,6 +42,7 @@ public class DBUtility {
 	private PreparedStatement updatePurpose;
 	private PreparedStatement selectPurposesInCourse;
 	private PreparedStatement insertPurposeInCourse;
+	private PreparedStatement deletePurposesInCourse;
 	private PreparedStatement selectStudentsInCourse;
 	private PreparedStatement insertStudentInCourse;
 	private PreparedStatement selectCoursesWithStudent;
@@ -240,6 +241,15 @@ public class DBUtility {
 				+ " VALUES (?,?,?);";
 		try {
 			insertPurposeInCourse = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "DELETE FROM PurposeInCourse WHERE serviceID=? AND courseID=?;";
+		try {
+			deletePurposesInCourse = dbcon.prepareStatement(text);
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
 			e.printStackTrace();
@@ -763,22 +773,33 @@ public class DBUtility {
 		return result;
 	}
 	
-	public int InsertPurposeInCourse(int purposeID, String serviceID, String courseID) {
+	public int[] InsertPurposesInCourse(List<Integer> purposeIDs, String serviceID, String courseID) {
 		try {
-			insertPurposeInCourse.setString(1, serviceID);
-			insertPurposeInCourse.setString(2, courseID);
-			insertPurposeInCourse.setInt(3, purposeID);
-		} catch (SQLException e) {
-			PrivacyControlService.logger.severe("Error while setting InsertPurposeInCourse parameters.");
-			e.printStackTrace();
-			return -1;
+			insertPurposeInCourse.clearBatch();
+		} catch (SQLException e1) {
+			PrivacyControlService.logger.severe("Error while clearing InsertPurposeInCourse batch.");
+			e1.printStackTrace();
 		}
 		
-		int result = 0;
+		for (int pid : purposeIDs) {
+			try {
+				insertPurposeInCourse.setString(1, serviceID);
+				insertPurposeInCourse.setString(2, courseID);
+				insertPurposeInCourse.setInt(3, pid);
+				insertPurposeInCourse.addBatch();
+			} catch (SQLException e) {
+				PrivacyControlService.logger.severe("Error while adding to InsertPurposeInCourse batch.");
+				e.printStackTrace();
+				return null;
+			}
+		}
+		
+		
+		int[] result = null;
 		try {
-			result = insertPurposeInCourse.executeUpdate();
+			result = insertPurposeInCourse.executeBatch();
 		} catch (SQLException e) {
-			PrivacyControlService.logger.severe("Error while executing InsertPurposeInCourse statement.");
+			PrivacyControlService.logger.severe("Error while executing InsertPurposeInCourse batch.");
 			e.printStackTrace();
 		}
 		return result;
@@ -855,10 +876,10 @@ public class DBUtility {
 	
 	public int UpdatePurpose(Purpose purpose) {
 		try {
-			updatePurpose.setInt(1, purpose.getId());
-			updatePurpose.setString(2, purpose.getTitle());
-			updatePurpose.setString(3, purpose.getDescription());
-			updatePurpose.setInt(4, purpose.getVersion());
+			updatePurpose.setString(1, purpose.getTitle());
+			updatePurpose.setString(2, purpose.getDescription());
+			updatePurpose.setInt(3, purpose.getVersion());
+			updatePurpose.setInt(4, purpose.getId());
 		}catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while setting UpdatePurpose parameters.");
 			e.printStackTrace();
@@ -867,12 +888,36 @@ public class DBUtility {
 		
 		int result = 0;
 		try {
-			result = updateCourse.executeUpdate();
+			result = updatePurpose.executeUpdate();
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while executing UpdatePurpose statement.");
 			e.printStackTrace();
 		}
 		
+		return result;
+	}
+	
+	/////////////////////////////////////////////////////////////////////////////////
+	///									Deletes									  ///
+	/////////////////////////////////////////////////////////////////////////////////
+	
+	public int DeletePurposesInCourse(String serviceID, String courseID) {
+		try {
+			deletePurposesInCourse.setString(1, serviceID);
+			deletePurposesInCourse.setString(2, courseID);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting DeletePurposesInCourse parameters.");
+			e.printStackTrace();
+			return -1;
+		}
+		
+		int result = 0;
+		try {
+			result = deletePurposesInCourse.executeUpdate();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing DeletePurposesInCourse statement.");
+			e.printStackTrace();
+		}
 		return result;
 	}
 	
