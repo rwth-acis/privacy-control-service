@@ -27,6 +27,7 @@ public class DBUtility {
 	private Connection dbcon = null;
 	
 	private PreparedStatement selectManager;
+	private PreparedStatement selectAllManagers;
 	private PreparedStatement insertManager;
 	private PreparedStatement selectService;
 	private PreparedStatement insertService;
@@ -93,7 +94,7 @@ public class DBUtility {
 	}
 	
 	// TODO: Remove all printStackTrace
-	// TODO: Put all into one trycatch
+	// TODO: Put all into one trycatch?
 	public boolean prepareStatements() {
 		if (dbcon == null) {
 			PrivacyControlService.logger.severe("Must first establish database connection.");
@@ -103,6 +104,15 @@ public class DBUtility {
 		String text = "SELECT * FROM Manager WHERE Email=?";
 		try {
 			selectManager = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "SELECT * FROM Manager;";
+		try {
+			selectAllManagers = dbcon.prepareStatement(text);
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
 			e.printStackTrace();
@@ -316,6 +326,39 @@ public class DBUtility {
 			if (result.next()) {
 				retVal.put("email", result.getString("email"));
 				retVal.put("name", result.getString("name"));
+			}
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while retrieving SelectManager results.");
+			e.printStackTrace();
+		}
+		
+		return retVal;
+	}
+	
+	public JSONArray SelectAllManagers() {
+		ResultSet result;
+		try {
+			result = selectAllManagers.executeQuery();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing SelectAllManagers query.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		JSONArray retVal = new JSONArray();
+		try {
+			while (result.next()) {
+				String email = result.getString("email");
+				String name = result.getString("name");
+				
+				JSONObject managerJSON = new JSONObject();
+				managerJSON.put("email", email);
+				managerJSON.put("name", name);
+				
+				JSONArray servicesJSON = SelectManagerServices(email);
+				managerJSON.put("services", servicesJSON);
+				
+				retVal.put(managerJSON);
 			}
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while retrieving SelectManager results.");

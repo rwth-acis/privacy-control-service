@@ -166,7 +166,21 @@ public class PrivacyControlService extends RESTService {
 		String responseMessage = "Manager " + manager.getName() + " succesfully registered.";
 		return Response.ok(responseMessage).build();
 	}
+	
+	@GET
+	@Path("/managers")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getManagers() {
+		if (!serviceInitialised) {
+			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		JSONArray retVal = database.SelectAllManagers();		
+		
+		return Response.ok().entity(retVal.toString()).build();
+	}
 
+	// TODO: Service registry integrations. Will receive ID, but need to search service registry to create service in DB.
 	@POST
 	@Path("/register/service")
 	@Consumes(MediaType.APPLICATION_JSON)
