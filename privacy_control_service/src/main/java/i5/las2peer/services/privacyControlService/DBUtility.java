@@ -26,6 +26,9 @@ public class DBUtility {
 	
 	private Connection dbcon = null;
 	
+	private PreparedStatement selectDPO;
+	private PreparedStatement selectAllDPOs;
+	private PreparedStatement insertDPO;
 	private PreparedStatement selectManager;
 	private PreparedStatement selectAllManagers;
 	private PreparedStatement insertManager;
@@ -101,7 +104,34 @@ public class DBUtility {
 			return false;
 		}
 		
-		String text = "SELECT * FROM Manager WHERE Email=?";
+		String text = "SELECT * FROM DPO WHERE email=?;";
+		try {
+			selectDPO = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "SELECT * FROM DPO;";
+		try {
+			selectAllDPOs = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "INSERT INTO DPO (email) VALUES (?);";
+		try {
+			insertDPO = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "SELECT * FROM Manager WHERE email=?";
 		try {
 			selectManager = dbcon.prepareStatement(text);
 		} catch (SQLException e) {
@@ -300,6 +330,64 @@ public class DBUtility {
 	/////////////////////////////////////////////////////////////////////////////////
 	///									Selects									  ///
 	/////////////////////////////////////////////////////////////////////////////////
+	
+	// DPO
+	
+	public JSONObject SelectDPO(String dpoID) {
+		try {
+			selectDPO.setString(1, dpoID);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting SelectDPO parameters.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		ResultSet result;
+		try {
+			result = selectDPO.executeQuery();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing SelectDPO query.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		// This may be a bit unnecessary for now, but who knows what the DPO table will hold in the future.
+		JSONObject retVal = new JSONObject();
+		try {
+			if (result.next()) {
+				retVal.put("email", result.getString("email"));
+			}
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while retrieving SelectDPO results.");
+			e.printStackTrace();
+		}
+		
+		return retVal;
+	}
+	
+	public List<String> SelectAllDPOs() {
+		ResultSet result;
+		try {
+			result = selectAllDPOs.executeQuery();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing SelectAllDPOs query.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		List<String> retVal = new ArrayList<String>();
+		try {
+			while (result.next()) {
+				String email = result.getString("email");
+				retVal.add(email);
+			}
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while retrieving SelectAllDPOs results.");
+			e.printStackTrace();
+		}
+		
+		return retVal;
+	}
 	
 	// MANAGER
 	
@@ -726,6 +814,27 @@ public class DBUtility {
 	/////////////////////////////////////////////////////////////////////////////////
 	///									Inserts									  ///
 	/////////////////////////////////////////////////////////////////////////////////
+	
+	public int InsertDPO(String dpoID) {
+		try {
+			insertDPO.setString(1, dpoID);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting InsertDPO parameters.");
+			e.printStackTrace();
+			return -1;
+		}
+		
+		int result = 0;
+		try {
+			result = insertDPO.executeUpdate();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing InsertDPO statement.");
+			e.printStackTrace();
+		}
+		
+		return result;
+		
+	}
 	
 	public int InsertManager(Manager manager) {
 		try {

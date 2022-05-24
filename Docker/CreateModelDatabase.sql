@@ -3,6 +3,16 @@ GO
 
 USE PrivacyServiceDB;
 
+-- ************************************** [DPO]
+CREATE TABLE [DPO]
+(
+ [email] varchar(50) NOT NULL ,
+
+
+ CONSTRAINT [PK_72] PRIMARY KEY CLUSTERED ([email] ASC)
+);
+GO
+
 -- ************************************** [Manager]
 CREATE TABLE [Manager]
 (

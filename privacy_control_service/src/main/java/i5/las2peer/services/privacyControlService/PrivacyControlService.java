@@ -12,13 +12,21 @@ import java.util.Map;
 import java.util.Random;
 import java.util.logging.Level;
 
+import javax.annotation.security.PermitAll;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Invocation;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
@@ -35,7 +43,9 @@ import i5.las2peer.registry.ReadWriteRegistryClient;
 import i5.las2peer.registry.Util;
 import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
+import i5.las2peer.security.Mediator;
 import i5.las2peer.security.ServiceAgentImpl;
+import i5.las2peer.services.privacyControlService.AuthenticationUtility.Role;
 import i5.las2peer.services.privacyControlService.smartContracts.DataProcessingPurposes;
 import i5.las2peer.services.privacyControlService.smartContracts.PrivacyConsentRegistry;
 import io.swagger.annotations.Api;
@@ -69,6 +79,11 @@ import model.Student;
 public class PrivacyControlService extends RESTService {
 
 	public final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
+	// TODO: Put in environment variables
+	public final static String OIDC_USER_INFO_ENDPOINT = "https://auth.las2peer.org/auth/realms/main/protocol/openid-connect/userinfo";
+	// TODO: put in environment variable
+	public static final String FIRST_DPO_EMAIL = "jovanovic.boris@rwth-aachen.de";
+	public static final String AUTHENTICATION_HEADER_NAME = "access_token";
 
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
@@ -76,6 +91,7 @@ public class PrivacyControlService extends RESTService {
 	//private static XAPIVerificationRegistry verificationRegisrty;
 
 	private static DBUtility database;
+	private static AuthenticationUtility auth;
 
 	private static boolean serviceInitialised = false;
 
@@ -86,10 +102,13 @@ public class PrivacyControlService extends RESTService {
 	@Path("/init")
 	@Produces(MediaType.TEXT_PLAIN)
 	@ApiResponses(value = { @ApiResponse(code = HttpURLConnection.HTTP_OK, message = "OK") })
-	public Response init() {
+	public Response init(ContainerRequestContext context) {
 		if (serviceInitialised) {
 			return Response.ok("Service already initialised.").build();
 		}
+		
+		logger.info(context.getHeaderString("access_token"));
+		// TODO: Authenticate the person doing the init. Can't do it with DPO check because of timeline.
 
 		L2pLogger.setGlobalConsoleLevel(Level.INFO);
 		logger.info("Initializing service...");
@@ -115,6 +134,7 @@ public class PrivacyControlService extends RESTService {
 			logger.severe("Could not load PrivacyConsentRegistry smart contract.");
 			return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
 		}
+		logger.info("Blockchain registries loaded.");
 
 		// TODO: Put parameters into environment variables
 		database = new DBUtility();
@@ -129,6 +149,12 @@ public class PrivacyControlService extends RESTService {
 			return Response.serverError().entity("Database prepared statement error.").build();
 
 		}
+		logger.info("Database connection established.");
+		
+		// Authentication cannot happen before db connection is established.
+		auth = new AuthenticationUtility();
+		auth.configure(OIDC_USER_INFO_ENDPOINT, logger, database, FIRST_DPO_EMAIL);
+		logger.info("Authentication utility configured.");
 
 		serviceInitialised = true;
 		logger.info("Done.");
@@ -143,6 +169,7 @@ public class PrivacyControlService extends RESTService {
 		retVal.put("initialised", serviceInitialised);
 		return Response.ok().entity(retVal.toString()).build();
 	}
+		
 
 	/////////////////////////////////////////////////////////////////////////////////
 	///                                  CRUD                                     ///
@@ -152,10 +179,22 @@ public class PrivacyControlService extends RESTService {
 	@Path("/register/manager")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response registerManager(Manager manager) {
+	public Response registerManager(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			Manager manager) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!auth.checkIfUserHasRole(userID, Role.DPO)) {
+			return Response.status(403).build();
+		}
+		
 		
 		int result = database.InsertManager(manager);
 		if (result <= 0) {
@@ -170,7 +209,7 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/managers")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getManagers() {
+	public Response getManagers(@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
