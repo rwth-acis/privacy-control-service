@@ -11,6 +11,7 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -121,6 +122,20 @@ public class AuthenticationUtility {
 		else {
 			return true;
 		}
+	}
+	
+	public JSONArray getAllRoles(String userID) {
+		JSONArray retVal = new JSONArray();
+		if (checkIfUserHasRole(userID, Role.DPO)) {
+			retVal.put("dpo");
+		}
+		if (checkIfUserHasRole(userID, Role.MANAGER)) {
+			retVal.put("manager");
+		}
+		if (checkIfUserHasRole(userID, Role.STUDENT)) {
+			retVal.put("student");
+		}
+		return retVal;
 	}
 
 }

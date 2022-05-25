@@ -169,6 +169,25 @@ public class PrivacyControlService extends RESTService {
 		retVal.put("initialised", serviceInitialised);
 		return Response.ok().entity(retVal.toString()).build();
 	}
+	
+	@GET
+	@Path("/user-roles")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getUserRoles(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token) {
+		if (!serviceInitialised) {
+			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		
+		JSONArray roles = auth.getAllRoles(userID);
+		return Response.ok().entity(roles.toString()).build();
+	}
 		
 
 	/////////////////////////////////////////////////////////////////////////////////
@@ -214,6 +233,15 @@ public class PrivacyControlService extends RESTService {
 			return Response.status(500).entity("Service not initialised").build();
 		}
 		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!auth.checkIfUserHasRole(userID, Role.DPO)) {
+			return Response.status(403).build();
+		}
+		
 		JSONArray retVal = database.SelectAllManagers();		
 		
 		return Response.ok().entity(retVal.toString()).build();
@@ -224,9 +252,20 @@ public class PrivacyControlService extends RESTService {
 	@Path("/register/service")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response registerService(Service service) {
+	public Response registerService(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			Service service) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!auth.checkIfUserHasRole(userID, Role.DPO)) {
+			return Response.status(403).build();
 		}
 		
 		int result = database.InsertService(service);
@@ -241,17 +280,37 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/service/{serviceID}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getService(@PathParam(value = "serviceID") String serviceID) {
+	public Response getService(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "serviceID") String serviceID) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
 		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		boolean roleDPO = auth.checkIfUserHasRole(userID, Role.DPO);
+		boolean roleManager = auth.checkIfUserHasRole(userID, Role.MANAGER);
+		if (!(roleDPO || roleManager)) {
+			return Response.status(403).build();
+		}
+				
 		JSONObject retVal = database.SelectServiceWithCourses(serviceID);
 		if (retVal == null) {
 			return Response.serverError().entity("Database error.").build();
 		}
 		if (retVal.isEmpty()) {
 			return Response.status(404).entity("Service not found.").build();
+		}
+		
+		// If the user is a manager, but not the manager of this service, deny request
+		if (!roleDPO && roleManager) {
+			if (!userID.equals(retVal.getString("managerID"))) {
+				return Response.status(403).build();
+			}
 		}
 
 		return Response.ok().entity(retVal.toString()).build();
@@ -260,9 +319,27 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/manager/{managerid}/services")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getManagerServices(@PathParam(value = "managerid") String managerID) {
+	public Response getManagerServices(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "managerid") String managerID) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.DPO) || auth.checkIfUserHasRole(userID, Role.MANAGER))) {
+			return Response.status(403).build();
+		}
+		
+		// If manager, has to be the same as user
+		if (auth.checkIfUserHasRole(userID, Role.MANAGER)) {
+			if (!userID.equals(managerID)) {
+				return Response.status(403).build();
+			}
 		}
 		
 		JSONArray retVal = database.SelectManagerServices(managerID);
@@ -277,10 +354,35 @@ public class PrivacyControlService extends RESTService {
 	@Path("/register/course")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response registerCourse(Course course) {
+	public Response registerCourse(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			Course course) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.MANAGER))) {
+			return Response.status(403).build();
+		}
+		
+		// If user is not manager of service, deny request
+		String serviceID = course.getServiceID();
+		logger.info(course.toString());
+		JSONObject serviceJSON = database.SelectService(serviceID);
+		logger.info(serviceJSON.toString());
+		if(serviceJSON.isEmpty()) {
+			return Response.status(400).build();
+		}
+		
+		if (!userID.equals(serviceJSON.getString("managerID"))) {
+			return Response.status(403).build();
+		}
+		
 		
 		int result = database.InsertCourse(course);
 		if (result <= 0) {
@@ -294,10 +396,50 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/service/{serviceID}/course/{courseID}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getCourse(@PathParam(value = "serviceID") String serviceID,
+	public Response getCourse(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "serviceID") String serviceID,
 			@PathParam(value = "courseID") String courseID) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		boolean hasRoleManager = auth.checkIfUserHasRole(userID, Role.MANAGER);
+		boolean hasRoleStudent = auth.checkIfUserHasRole(userID, Role.STUDENT);
+		if (!(hasRoleManager || hasRoleStudent)) {
+			return Response.status(403).build();
+		}
+		
+		boolean shouldBeDenied = true;
+		// If the user is a manager, they have to be the service's manager
+		if (hasRoleManager) {
+			JSONObject serviceJSON = database.SelectService(serviceID);
+			if (userID.equals(serviceJSON.getString("managerID"))) {
+				shouldBeDenied = false;
+			}
+		}
+		
+		// If is a student, has to be enrolled in the course
+		if (hasRoleStudent) {
+			// TODO: This can be done in a SQL query
+			JSONArray studentsJSON = database.SelectStudentsInCourse(serviceID, courseID);
+			for (Object element : studentsJSON) {
+				JSONObject studentJSON = (JSONObject) element;
+				String studentID = studentJSON.getString("email");
+				if (userID.equals(studentID)) {
+					shouldBeDenied = false;
+				}
+			}
+		}
+		
+		// If the user is both student and manager, any of the above are OK
+		if (shouldBeDenied) {
+			return Response.status(403).build();
 		}
 		
 		JSONObject retVal = database.SelectCourse(serviceID, courseID);
@@ -315,9 +457,27 @@ public class PrivacyControlService extends RESTService {
 	@Path("/service/{serviceID}/course/{courseID}")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response editCourse(Course course) {
+	public Response editCourse(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			Course course) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.MANAGER))) {
+			return Response.status(403).build();
+		}
+		
+		// If user is not manager of service, deny request
+		String serviceID = course.getServiceID();
+		JSONObject serviceJSON = database.SelectService(serviceID);
+		if (!userID.equals(serviceJSON.getString("managerID"))) {
+			return Response.status(403).build();
 		}
 		
 		int result = database.UpdateCourse(course);
@@ -333,9 +493,20 @@ public class PrivacyControlService extends RESTService {
 	@Path("/register/student")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response registerStudent(Student student) {
+	public Response registerStudent(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			Student student) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.MANAGER))) {
+			return Response.status(403).build();
 		}
 		
 		int result = database.InsertStudent(student);
@@ -352,10 +523,21 @@ public class PrivacyControlService extends RESTService {
 	@POST
 	@Path("/register/purpose-in-course")
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response registerPurposesInCourse(InputStream input) {
+	public Response registerPurposesInCourse(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			InputStream input) {
 		
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.MANAGER))) {
+			return Response.status(403).build();
 		}
 		
 		JSONTokener tokener = new JSONTokener(input);
@@ -367,18 +549,14 @@ public class PrivacyControlService extends RESTService {
 			return Response.status(400).entity("Invalid JSON.").build();
 		}
 		
-		logger.info(picJSON.toString());
 		String courseID;
 		String serviceID;
 		List<Integer> purposeIDs = new ArrayList<Integer>();
 		try {
 			courseID = picJSON.getString("courseID");
-			logger.info(courseID);
 			serviceID = picJSON.getString("serviceID");
-			logger.info(serviceID);
 			for (Object x : picJSON.getJSONArray("purposes").toList()) {
 				purposeIDs.add((int) x);
-				logger.info("aa");
 			}
 		} catch (JSONException e) {
 			logger.warning("Mandatory fields not found in request JSON.");
@@ -387,6 +565,12 @@ public class PrivacyControlService extends RESTService {
 		} catch (ClassCastException e) {
 			logger.warning("Purpose list contains non-integer ids.");
 			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		// If user is not manager of service, deny request
+		JSONObject serviceJSON = database.SelectService(serviceID);
+		if (!userID.equals(serviceJSON.getString("managerID"))) {
+			return Response.status(403).build();
 		}
 		
 		// First delete current registration
@@ -410,11 +594,18 @@ public class PrivacyControlService extends RESTService {
 	@Path("/purpose-in-course/{serviceid}/{courseid}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getPurposesInCourse(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
 			@PathParam(value = "serviceid") String serviceID,
 			@PathParam(value = "courseid") String courseID) {
 		
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
 		}
 		
 		List<Integer> result = database.SelectPurposesInCourse(serviceID, courseID);
@@ -443,11 +634,27 @@ public class PrivacyControlService extends RESTService {
 	@Path("/student-in-course/{serviceid}/{courseid}")
 	@Produces(MediaType.APPLICATION_JSON)
 	public Response getStudentsInCourse(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
 			@PathParam(value = "serviceid") String serviceID,
 			@PathParam(value = "courseid") String courseID) {
 		
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.MANAGER))) {
+			return Response.status(403).build();
+		}
+		
+		// If user is not manager of service, deny request
+		JSONObject serviceJSON = database.SelectService(serviceID);
+		if (!userID.equals(serviceJSON.getString("managerID"))) {
+			return Response.status(403).build();
 		}
 		
 		JSONArray result = database.SelectStudentsInCourse(serviceID, courseID);
@@ -463,12 +670,28 @@ public class PrivacyControlService extends RESTService {
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
 	public Response registerStudentInCourse(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
 			@PathParam(value = "serviceid") String serviceID,
 			@PathParam(value = "courseid") String courseID,
 			Student student) {
 		
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.MANAGER))) {
+			return Response.status(403).build();
+		}
+		
+		// If user is not manager of service, deny request
+		JSONObject serviceJSON = database.SelectService(serviceID);
+		if (!userID.equals(serviceJSON.getString("managerID"))) {
+			return Response.status(403).build();
 		}
 		
 		// See if user exists in DB
@@ -505,9 +728,24 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/consent/{studentid}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getStudentConsentOverview(@PathParam(value = "studentid") String studentID) {
+	public Response getStudentConsentOverview(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "studentid") String studentID) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(userID, Role.STUDENT))) {
+			return Response.status(403).build();
+		}
+		
+		if (!userID.equals(studentID)) {
+			return Response.status(403).build();
 		}
 		
 		JSONArray result = database.SelectCoursesWithStudent(studentID);
@@ -518,11 +756,28 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/consent/{userid}/{serviceid}/{courseid}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getTemplate(@PathParam(value = "userid") String userID,
-			@PathParam(value = "serviceid") String serviceID, @PathParam(value = "courseid") String courseID) {
+	public Response getTemplate(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "userid") String userID,
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID) {
 
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String tokenUserID = auth.checkUserToken(access_token);
+		if (tokenUserID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(tokenUserID, Role.STUDENT))) {
+			return Response.status(403).build();
+		}
+		
+		// If user is not the same as student request, deny
+		if (!userID.equals(tokenUserID)) {
+			return Response.status(403).build();
 		}
 		
 		try {
@@ -569,7 +824,9 @@ public class PrivacyControlService extends RESTService {
 	@POST
 	@Path("/consent")
 	@Consumes(MediaType.APPLICATION_JSON)
-	public Response postStudentConsent(InputStream input) {
+	public Response postStudentConsent(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			InputStream input) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
@@ -600,6 +857,20 @@ public class PrivacyControlService extends RESTService {
 		// Just making sure
 		if (studentID == null || courseID == null || serviceID == null) {
 			return Response.status(400).entity("Mandatory item not included").build();
+		}
+		
+		// Authentication and authorisation
+		String tokenUserID = auth.checkUserToken(access_token);
+		if (tokenUserID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(tokenUserID, Role.STUDENT))) {
+			return Response.status(403).build();
+		}
+		
+		// If user ID is not the same as the student ID, deny
+		if (!tokenUserID.equals(studentID)) {
+			return Response.status(403).build();
 		}
 		
 		List<BigInteger> purposes = new ArrayList<BigInteger>();
@@ -647,9 +918,14 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/purpose-list")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getPurposeList() {
+	public Response getPurposeList(@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		String tokenUserID = auth.checkUserToken(access_token);
+		if (tokenUserID == null) {
+			return Response.status(401).build();
 		}
 		
 		logger.info("Attempting to retrieve list of purpose IDs...");
@@ -704,9 +980,16 @@ public class PrivacyControlService extends RESTService {
 	@GET
 	@Path("/purpose-list/{id}")
 	@Produces(MediaType.APPLICATION_JSON)
-	public Response getPurposeItem(@PathParam(value = "id") int purposeID) {
+	public Response getPurposeItem(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "id") int purposeID) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		String tokenUserID = auth.checkUserToken(access_token);
+		if (tokenUserID == null) {
+			return Response.status(401).build();
 		}
 		
 		Purpose retVal = getPurposeBlockchain(purposeID);
@@ -722,9 +1005,20 @@ public class PrivacyControlService extends RESTService {
 	@Path("/purpose-list")
 	@Consumes(MediaType.APPLICATION_JSON)
 	@Produces(MediaType.TEXT_PLAIN)
-	public Response postPurpose(Purpose purpose) {
+	public Response postPurpose(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			Purpose purpose) {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String userID = auth.checkUserToken(access_token);
+		if (userID == null) {
+			return Response.status(401).build();
+		}
+		if (!auth.checkIfUserHasRole(userID, Role.DPO)) {
+			return Response.status(403).build();
 		}
 		
 		logger.info("Attempting to create or modify purpose: " + purpose);

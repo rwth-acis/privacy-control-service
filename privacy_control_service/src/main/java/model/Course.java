@@ -54,5 +54,11 @@ public class Course {
 		retVal.put("id", id);
 		retVal.put("name", name);
 		return retVal;
-	}	
+	}
+
+	@Override
+	public String toString() {
+		return "Course [serviceID=" + serviceID + ", id=" + id + ", name=" + name + ", description=" + description
+				+ "]";
+	}
 }
