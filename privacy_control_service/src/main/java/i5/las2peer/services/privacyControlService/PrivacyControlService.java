@@ -798,16 +798,30 @@ public class PrivacyControlService extends RESTService {
 			retVal.put("userID", userID);
 			retVal.put("serviceID", serviceID);
 			retVal.put("courseID", courseID);
-			JSONArray purposesJSON = new JSONArray();
+			
+			
+			// Check if purpose version in consent is up to date
+			List<Integer> consentPurposeVersions = new ArrayList<Integer>();
+			for (BigInteger bi : tmpTuple.component2()) {
+				consentPurposeVersions.add(bi.intValue());
+			}
+			
+			List<Purpose> purposesInPurposeRegistry = new ArrayList<Purpose>();
 			for (BigInteger bi : tmpTuple.component1()) {
-				purposesJSON.put(bi.intValue());
+				purposesInPurposeRegistry.add(getPurposeBlockchain(bi.intValue()));
+			}
+			
+			JSONArray purposesJSON = new JSONArray();
+			for (int i = 0; i < consentPurposeVersions.size(); i++) {
+				Purpose tmp = purposesInPurposeRegistry.get(i);
+				if (consentPurposeVersions.get(i) == tmp.getVersion()) {
+					purposesJSON.put(tmp.getId());
+				}
 			}
 			retVal.put("purposes", purposesJSON);
-			JSONArray purposeVersionsJSON = new JSONArray();
-			for (BigInteger bi : tmpTuple.component2()) {
-				purposeVersionsJSON.put(bi.intValue());
-			}
-			retVal.put("privacyVersion", purposeVersionsJSON);
+			// TODO: Do we need to add the versions here too?
+			
+			
 			retVal.put("timestamp", tmpTuple.component3().intValue());
 
 			return Response.ok().entity(retVal.toString()).build();
@@ -909,7 +923,32 @@ public class PrivacyControlService extends RESTService {
 		
 		return Response.ok("Consent stored.").build();
 	}
-
+	
+	/////////////////////////////////////////////////////////////////////////////////
+	///                            Collected data                                 ///
+	/////////////////////////////////////////////////////////////////////////////////
+	
+	@GET
+	@Path("/collected-data/{serviceid}/{courseid}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getCollectedData(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID) {
+		//TODO: Add authorisation and authentication 
+		
+		StatementUtility tmpStatements = new StatementUtility();
+		
+		// TODO: Add retrieval from LRS and hashCheck with blockchain
+		
+		JSONArray retVal = new JSONArray();
+		retVal.put(tmpStatements.getStatement1());
+		retVal.put(tmpStatements.getStatement2());
+		retVal.put(tmpStatements.getStatement3());
+		
+		return Response.ok().entity(retVal.toString()).build();
+	}
+	
 	/////////////////////////////////////////////////////////////////////////////////
 	///                                Purpose                                    ///
 	/////////////////////////////////////////////////////////////////////////////////
