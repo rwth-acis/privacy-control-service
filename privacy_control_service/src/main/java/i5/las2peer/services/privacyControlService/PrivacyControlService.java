@@ -23,6 +23,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.container.ContainerRequestContext;
@@ -92,6 +93,7 @@ public class PrivacyControlService extends RESTService {
 
 	private static DBUtility database;
 	private static AuthenticationUtility auth;
+	private static StatementUtility statUtil;
 
 	private static boolean serviceInitialised = false;
 
@@ -156,6 +158,8 @@ public class PrivacyControlService extends RESTService {
 		auth.configure(OIDC_USER_INFO_ENDPOINT, logger, database, FIRST_DPO_EMAIL);
 		logger.info("Authentication utility configured.");
 
+		statUtil = new StatementUtility();
+		
 		serviceInitialised = true;
 		logger.info("Done.");
 		return Response.ok(200).entity("Initialisation was successful.").build();
@@ -781,51 +785,30 @@ public class PrivacyControlService extends RESTService {
 		}
 		
 		try {
-			byte[] bUserID = Util.soliditySha3(userID);
-			byte[] bServiceID = Util.soliditySha3(serviceID);
-			byte[] bCourseID = Util.soliditySha3(courseID);
-
-			logger.info("GET user: " + userID + " is " + bUserID.toString());
-			logger.info("GET service:  " + serviceID + " is " + bServiceID.toString());
-			logger.info("GET course: " + courseID + " is " + bCourseID.toString());
-
-			Tuple3<List<BigInteger>, List<BigInteger>, BigInteger> tmpTuple = consentRegistry
-					.getConsentInfo(bUserID, bServiceID, bCourseID).send();
-			logger.info("Tupple info: " + tmpTuple.component1().toString() + " " + tmpTuple.component2() + " "
-					+ tmpTuple.component3());
-
 			JSONObject retVal = new JSONObject();
 			retVal.put("userID", userID);
 			retVal.put("serviceID", serviceID);
 			retVal.put("courseID", courseID);
 			
+			Tuple3<List<Integer>, List<Integer>, BigInteger> tuple = 
+					getConsent(userID, serviceID, courseID);
 			
-			// Check if purpose version in consent is up to date
-			List<Integer> consentPurposeVersions = new ArrayList<Integer>();
-			for (BigInteger bi : tmpTuple.component2()) {
-				consentPurposeVersions.add(bi.intValue());
+			List<Integer> purposeIDs = tuple.component1();
+			List<Integer> purposeVersions = tuple.component2();
+			BigInteger timestamp = tuple.component3();
+			
+			JSONArray purposeIDsJSON = new JSONArray();
+			JSONArray purposeVersionsJSON = new JSONArray();
+			for (int i = 0; i < purposeIDs.size(); i++) {
+				purposeIDsJSON.put(purposeIDs.get(i));
+				purposeVersionsJSON.put(purposeVersions.get(i));
 			}
+			retVal.put("purposeIDs", purposeIDsJSON);
+			retVal.put("purposeVersions", purposeVersionsJSON);
 			
-			List<Purpose> purposesInPurposeRegistry = new ArrayList<Purpose>();
-			for (BigInteger bi : tmpTuple.component1()) {
-				purposesInPurposeRegistry.add(getPurposeBlockchain(bi.intValue()));
-			}
-			
-			JSONArray purposesJSON = new JSONArray();
-			for (int i = 0; i < consentPurposeVersions.size(); i++) {
-				Purpose tmp = purposesInPurposeRegistry.get(i);
-				if (consentPurposeVersions.get(i) == tmp.getVersion()) {
-					purposesJSON.put(tmp.getId());
-				}
-			}
-			retVal.put("purposes", purposesJSON);
-			// TODO: Do we need to add the versions here too?
-			
-			
-			retVal.put("timestamp", tmpTuple.component3().intValue());
+			retVal.put("timestamp", timestamp.intValue());
 
 			return Response.ok().entity(retVal.toString()).build();
-
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -834,6 +817,55 @@ public class PrivacyControlService extends RESTService {
 		}
 
 	}
+	
+	private Tuple3<List<Integer>, List<Integer>, BigInteger> getConsent(
+			String userID,
+			String serviceID,
+			String courseID) throws Exception {
+		
+		logger.info("Attempting to get consent of: User["
+						+ userID + "] Service["
+						+ serviceID + "] Course["
+						+ courseID +"]");
+		byte[] bUserID = Util.soliditySha3(userID);
+		byte[] bServiceID = Util.soliditySha3(serviceID);
+		byte[] bCourseID = Util.soliditySha3(courseID);
+		Tuple3<List<BigInteger>, List<BigInteger>, BigInteger> tmpTuple = consentRegistry
+				.getConsentInfo(bUserID, bServiceID, bCourseID).send();
+		logger.info("Tupple info: " + tmpTuple.component1().toString() + " " + tmpTuple.component2() + " "
+				+ tmpTuple.component3());
+		
+		// Convert consent purpose versions from BigInteger to Integer and put in array
+		List<Integer> consentPurposeVersions = new ArrayList<Integer>();
+		for (BigInteger bi : tmpTuple.component2()) {
+			consentPurposeVersions.add(bi.intValue());
+		}
+		
+		// Get current versions of mentioned purposes
+		List<Purpose> purposesInPurposeRegistry = new ArrayList<Purpose>();
+		for (BigInteger bi : tmpTuple.component1()) {
+			purposesInPurposeRegistry.add(getPurposeBlockchain(bi.intValue()));
+		}
+		
+		// Check if purpose version in consent is up to date
+		List<Integer> validPurposeIDs = new ArrayList<Integer>();
+		List<Integer> validPurposeVersions = new ArrayList<Integer>();
+		for (int i = 0; i < consentPurposeVersions.size(); i++) {
+			Purpose tmp = purposesInPurposeRegistry.get(i);
+			// Only add those whose version is current
+			if (consentPurposeVersions.get(i) == tmp.getVersion()) {
+				validPurposeIDs.add(tmp.getId());
+				validPurposeVersions.add(tmp.getVersion());
+			}
+		}
+		
+		BigInteger timestamp = tmpTuple.component3();
+		
+		Tuple3<List<Integer>, List<Integer>, BigInteger> retVal = 
+				new Tuple3<List<Integer>, List<Integer>, BigInteger>(validPurposeIDs, validPurposeVersions, timestamp); 
+		return retVal;
+	}
+	
 	
 	@POST
 	@Path("/consent")
@@ -948,6 +980,103 @@ public class PrivacyControlService extends RESTService {
 		
 		return Response.ok().entity(retVal.toString()).build();
 	}
+	
+	
+	@POST
+	@Path("/try-hash")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response tryHash(InputStream input) {
+		JSONTokener tokener = new JSONTokener(input);
+		JSONArray dataJSON = null;
+		try {
+			dataJSON = new JSONArray(tokener);
+		} catch (JSONException e) {
+			//logger.warning("Could not parse JSON in POST Consent request.");
+			e.printStackTrace();
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		JSONObject statement1 = dataJSON.getJSONObject(0);
+		JSONObject statement2 = dataJSON.getJSONObject(1);
+		JSONObject statement3 = dataJSON.getJSONObject(2);
+		
+		
+		JSONObject core1 = statUtil.extractCoreStatement(statement1.getJSONObject("statement"));
+		JSONObject core2 = statUtil.extractCoreStatement(statement2.getJSONObject("statement"));
+		JSONObject core3 = statUtil.extractCoreStatement(statement3.getJSONObject("statement"));
+		
+		HashUtility hashUtil = new HashUtility();
+		String hash1 = hashUtil.hash(core1.toString());
+		String hash2 = hashUtil.hash(core2.toString());
+		String hash3 = hashUtil.hash(core3.toString());
+		
+		JSONArray retVal = new JSONArray();
+		retVal.put(hash1);
+		retVal.put(hash2);
+		retVal.put(hash3);
+		
+		return Response.ok(retVal.toString()).build();
+	}
+	
+	@POST
+	@Path("/forward-statement")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response forwardStatement(InputStream input) {
+		// TODO: get service id from service agent info
+		String serviceID = "NEVERPUTSPACE";
+		
+		JSONTokener tokener = new JSONTokener(input);
+		JSONObject entryJSON = null;
+		JSONObject statementJSON = null;
+		int purposeID;
+		String courseID;
+		try {
+			entryJSON = new JSONObject(tokener);
+			statementJSON = entryJSON.getJSONObject("statement");
+			purposeID = entryJSON.getInt("purpose");
+			courseID = entryJSON.getString("course");
+		} catch (JSONException e) {
+			//logger.warning("Could not parse JSON in POST Consent request.");
+			e.printStackTrace();
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		String userID = statUtil.getActorEmail(statementJSON);
+		if (userID == null) {
+			return Response.status(400).entity("Invalid xAPI Statement: Missing actor account email.").build();
+		}
+		
+		// Check user consent
+		List<Integer> purposeIDs;
+		try {
+			Tuple3<List<Integer>, List<Integer>, BigInteger> tuple = 
+					getConsent(userID, serviceID, courseID);
+			purposeIDs = tuple.component1();
+		} catch (Exception e) {
+			return Response.serverError().entity("Blockchain issue.").build();
+		}
+		
+		if (!purposeIDs.contains(purposeID)) {
+			// The user did not give permission
+			return Response.status(403).entity("User did not give consent.").build();
+		}
+		
+		// Log to verification registry
+		// TODO: THIS IS NEXT
+		// TODO: Add purpose code (& version) to verification 
+		
+		// Forward to LRS (through learning locker)
+		Client lrsClient = ClientBuilder.newClient();
+		WebTarget target = lrsClient.target("https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements");
+		Invocation.Builder invocationBuilder = target.request();
+		invocationBuilder.header(HttpHeaders.AUTHORIZATION, "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0");
+		invocationBuilder.header("X-Experience-API-Version", "1.0.3");
+		Response postResponse = invocationBuilder.post(Entity.entity(statementJSON.toString(), MediaType.APPLICATION_JSON));
+		
+		return Response.ok().build();
+	}
+	
 	
 	/////////////////////////////////////////////////////////////////////////////////
 	///                                Purpose                                    ///
