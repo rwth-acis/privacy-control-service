@@ -13,6 +13,7 @@ import java.util.Random;
 import java.util.logging.Level;
 
 import javax.annotation.security.PermitAll;
+import javax.print.attribute.standard.Media;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
@@ -36,12 +37,18 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.web3j.tuples.generated.Tuple3;
+import org.web3j.tuples.generated.Tuple4;
+
+import com.fasterxml.jackson.databind.annotation.JsonAppend.Prop;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.Hashing;
 
 import i5.las2peer.api.Context;
 import i5.las2peer.logging.L2pLogger;
 import i5.las2peer.p2p.EthereumNode;
 import i5.las2peer.registry.ReadWriteRegistryClient;
 import i5.las2peer.registry.Util;
+import i5.las2peer.registry.exceptions.EthereumException;
 import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
 import i5.las2peer.security.Mediator;
@@ -49,6 +56,7 @@ import i5.las2peer.security.ServiceAgentImpl;
 import i5.las2peer.services.privacyControlService.AuthenticationUtility.Role;
 import i5.las2peer.services.privacyControlService.smartContracts.DataProcessingPurposes;
 import i5.las2peer.services.privacyControlService.smartContracts.PrivacyConsentRegistry;
+import i5.las2peer.services.privacyControlService.smartContracts.XAPIVerificationRegistry;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -89,7 +97,7 @@ public class PrivacyControlService extends RESTService {
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
 	private static DataProcessingPurposes purposesRegistry;
-	//private static XAPIVerificationRegistry verificationRegisrty;
+	private static XAPIVerificationRegistry verificationRegisrty;
 
 	private static DBUtility database;
 	private static AuthenticationUtility auth;
@@ -118,10 +126,15 @@ public class PrivacyControlService extends RESTService {
 		ServiceAgentImpl agent = (ServiceAgentImpl) Context.getCurrent().getServiceAgent();
 		registryClient = ((EthereumNode) agent.getRunningAtNode()).getRegistryClient();
 		// TODO: Put this in environment variables.
-		consentRegistry = registryClient.loadSmartContract(PrivacyConsentRegistry.class,
+		consentRegistry = registryClient.loadSmartContract(
+				PrivacyConsentRegistry.class,
 				"0xC58238a482e929584783d13A684f56Ca5249243E");
-		purposesRegistry = registryClient.loadSmartContract(DataProcessingPurposes.class,
+		purposesRegistry = registryClient.loadSmartContract(
+				DataProcessingPurposes.class,
 				"0x2cCEc92848aA65A79dEa527B0449e4ce6f86472c");
+		verificationRegisrty = registryClient.loadSmartContract(
+				XAPIVerificationRegistry.class,
+				"0x5b3F42bDD268D21DefF2986F182c5646B35afBae");
 
 		if (consentRegistry == null) {
 			logger.severe("Could not load PrivacyConsentRegistry smart contract.");
@@ -132,9 +145,9 @@ public class PrivacyControlService extends RESTService {
 			return Response.serverError().entity("Error getting contract: DataProcessingPurposes.").build();
 		}
 		// TODO: set correct registry
-		if (consentRegistry == null) {
-			logger.severe("Could not load PrivacyConsentRegistry smart contract.");
-			return Response.serverError().entity("Error getting contract: PrivacyConsentRegistry.").build();
+		if (verificationRegisrty == null) {
+			logger.severe("Could not load XAPIVerificationRegistry smart contract.");
+			return Response.serverError().entity("Error getting contract: XAPIVerificationRegistry.").build();
 		}
 		logger.info("Blockchain registries loaded.");
 
@@ -827,9 +840,9 @@ public class PrivacyControlService extends RESTService {
 						+ userID + "] Service["
 						+ serviceID + "] Course["
 						+ courseID +"]");
-		byte[] bUserID = Util.soliditySha3(userID);
-		byte[] bServiceID = Util.soliditySha3(serviceID);
-		byte[] bCourseID = Util.soliditySha3(courseID);
+		byte[] bUserID = HashUtility.hashForBlockchainByte(userID);
+		byte[] bServiceID = HashUtility.hashForBlockchainByte(serviceID);
+		byte[] bCourseID = HashUtility.hashForBlockchainByte(courseID);
 		Tuple3<List<BigInteger>, List<BigInteger>, BigInteger> tmpTuple = consentRegistry
 				.getConsentInfo(bUserID, bServiceID, bCourseID).send();
 		logger.info("Tupple info: " + tmpTuple.component1().toString() + " " + tmpTuple.component2() + " "
@@ -927,9 +940,9 @@ public class PrivacyControlService extends RESTService {
 		
 		// TODO: Check in DB if student attends course, etc.
 		
-		byte[] bStudentID = Util.soliditySha3(studentID);
-		byte[] bCourseID = Util.soliditySha3(courseID);
-		byte[] bServiceID = Util.soliditySha3(serviceID);
+		byte[] bStudentID = HashUtility.hashForBlockchainByte(studentID);
+		byte[] bCourseID = HashUtility.hashForBlockchainByte(courseID);
+		byte[] bServiceID = HashUtility.hashForBlockchainByte(serviceID);
 		
 		logger.info("Attempting to store consent for student: " + studentID);
 		
@@ -1006,10 +1019,9 @@ public class PrivacyControlService extends RESTService {
 		JSONObject core2 = statUtil.extractCoreStatement(statement2.getJSONObject("statement"));
 		JSONObject core3 = statUtil.extractCoreStatement(statement3.getJSONObject("statement"));
 		
-		HashUtility hashUtil = new HashUtility();
-		String hash1 = hashUtil.hash(core1.toString());
-		String hash2 = hashUtil.hash(core2.toString());
-		String hash3 = hashUtil.hash(core3.toString());
+		String hash1 = HashUtility.hash(core1.toString());
+		String hash2 = HashUtility.hash(core2.toString());
+		String hash3 = HashUtility.hash(core3.toString());
 		
 		JSONArray retVal = new JSONArray();
 		retVal.put(hash1);
@@ -1023,6 +1035,9 @@ public class PrivacyControlService extends RESTService {
 	@Path("/forward-statement")
 	@Consumes(MediaType.APPLICATION_JSON)
 	public Response forwardStatement(InputStream input) {
+		if (!serviceInitialised) {
+			return Response.status(500).entity("Service not initialised").build();
+		}
 		// TODO: get service id from service agent info
 		String serviceID = "NEVERPUTSPACE";
 		
@@ -1049,22 +1064,43 @@ public class PrivacyControlService extends RESTService {
 		
 		// Check user consent
 		List<Integer> purposeIDs;
+		List<Integer> purposeVersions;
 		try {
 			Tuple3<List<Integer>, List<Integer>, BigInteger> tuple = 
 					getConsent(userID, serviceID, courseID);
 			purposeIDs = tuple.component1();
+			purposeVersions = tuple.component2();
 		} catch (Exception e) {
 			return Response.serverError().entity("Blockchain issue.").build();
 		}
 		
-		if (!purposeIDs.contains(purposeID)) {
+		int purposeIndex = purposeIDs.indexOf(purposeID);
+		if (purposeIndex < 0) {
 			// The user did not give permission
 			return Response.status(403).entity("User did not give consent.").build();
 		}
+		int purposeVersion = purposeVersions.get(purposeIndex);
 		
+		logger.info("Attempting to log entry in xAPIVerificationRegistry:");
 		// Log to verification registry
-		// TODO: THIS IS NEXT
-		// TODO: Add purpose code (& version) to verification 
+		byte[] bUserID = HashUtility.hashForBlockchainByte(userID);
+		logger.info("User ID and hash: " + userID + " -> " + HashCode.fromBytes(bUserID));
+		String data = statUtil.extractCoreStatement(statementJSON).toString();
+		byte[] bDataHash = HashUtility.hashForBlockchainByte(data);
+		logger.info("Data hash: " + bDataHash.toString());
+		BigInteger bPurposeCode = BigInteger.valueOf(purposeID);
+		logger.info("Purpose Code: " + bPurposeCode);
+		BigInteger bPurposeVersion = BigInteger.valueOf(purposeVersion);
+		logger.info("Purpose Version: " + bPurposeVersion);
+		
+		try {
+			verificationRegisrty.enterLogEntry(bUserID, bDataHash, bPurposeCode, bPurposeVersion).send();
+		} catch (Exception e) {
+			logger.severe("Could not execute EnterLogEntry of xAPIVerificationRegistry.");
+			e.printStackTrace();
+			return Response.serverError().entity("Blockchain issue.").build();
+		}
+
 		
 		// Forward to LRS (through learning locker)
 		Client lrsClient = ClientBuilder.newClient();
@@ -1073,10 +1109,76 @@ public class PrivacyControlService extends RESTService {
 		invocationBuilder.header(HttpHeaders.AUTHORIZATION, "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0");
 		invocationBuilder.header("X-Experience-API-Version", "1.0.3");
 		Response postResponse = invocationBuilder.post(Entity.entity(statementJSON.toString(), MediaType.APPLICATION_JSON));
-		
+		logger.info("Done.");
 		return Response.ok().build();
 	}
 	
+	
+	@POST
+	@Path("/try-verify")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response tryVerify(InputStream input) {
+		JSONTokener tokener = new JSONTokener(input);
+		JSONArray dataJSON = null;
+		try {
+			dataJSON = new JSONArray(tokener);
+		} catch (JSONException e) {
+			//logger.warning("Could not parse JSON in POST Consent request.");
+			e.printStackTrace();
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		JSONArray retVal = null;
+		try {
+			 retVal = verifyStatements("jovanovic.boris@rwth-aachen.de", dataJSON);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return Response.serverError().build();
+		}
+		
+		return Response.ok().entity(retVal.toString()).build();
+	}
+	
+	private JSONArray verifyStatements(
+			String userID,
+			JSONArray statements
+			) throws Exception {
+		
+		byte[] bUserID = HashUtility.hashForBlockchainByte(userID);
+		Tuple4<List<byte[]>, List<BigInteger>, List<BigInteger>, List<BigInteger>> tuple =
+				verificationRegisrty.getLogEntries(bUserID).send();
+		
+		List<byte[]> dataHashes = tuple.component1();
+		logger.info("[");
+		for (byte[] dataHash : dataHashes) {
+			logger.info(HashCode.fromBytes(dataHash) + ",");
+		}
+		logger.info("]");
+		
+		JSONArray retVal = new JSONArray();
+		for (int i = 0; i < statements.length(); i++) {
+			JSONObject statement = statements.getJSONObject(i);
+			JSONObject coreStatement = statUtil.extractCoreStatement(statement);
+			byte[] hashedStatement = HashUtility.hashForBlockchainByte(coreStatement.toString());
+			logger.info("Hashed statement: " + HashCode.fromBytes(hashedStatement));
+			
+			boolean verified = false;
+			// Cannot directly compare byte arrays for some reason
+			for(byte[] item : dataHashes) {
+				if (HashUtility.compareHashBytes(hashedStatement, item)) {
+					verified = true;
+				}
+			}
+			
+			JSONObject entry = new JSONObject();
+			entry.put("statement", statement);
+			entry.put("verified", verified);
+			retVal.put(entry);
+		}
+		
+		return retVal;
+	}
 	
 	/////////////////////////////////////////////////////////////////////////////////
 	///                                Purpose                                    ///
