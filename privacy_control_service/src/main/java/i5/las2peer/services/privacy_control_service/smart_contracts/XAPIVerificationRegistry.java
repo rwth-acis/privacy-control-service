@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControlService.smartContracts;
+package i5.las2peer.services.privacy_control_service.smart_contracts;
 
 import java.math.BigInteger;
 import java.util.Arrays;

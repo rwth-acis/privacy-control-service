@@ -1,0 +1,26 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    ethereum:
+        hostname: ethereum
+        networks:
+            - las2peernet
+        container_name: ethereum
+        image: rwthacis/monitored-geth-client
+        command: "/root/start.sh"
+        environment:
+            GETH_VERBOSITY: 3
+            ETHEREUM_DATA_DIR: "/root/.ethereum/devchain"
+        ports:
+            - "30303"
+            - "30303/udp"
+            - "8545:8545"
+            - "8546"
+            - "3000:3000"
+        volumes:
+            - "ethdata:/root/.ethereum/devchain"
+
+volumes:
+    ethdata:

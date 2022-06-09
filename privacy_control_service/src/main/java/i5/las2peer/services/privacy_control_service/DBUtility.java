@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControlService;
+package i5.las2peer.services.privacy_control_service;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -18,7 +18,7 @@ import model.Service;
 import model.Student;
 
 public class DBUtility {
-	public final static String DB_URL = "localhost";
+	public final static String DB_URL = "pcs-mssql";
 	public final static int DB_PORT = 1433;
 	public final static String DB_NAME = "PrivacyService";
 	private final static String DB_USERNAME = "SA";

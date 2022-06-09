@@ -1,0 +1,48 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    sbf-mysql:
+        hostname: sbf-mysql
+        networks:
+            - las2peernet
+        container_name: sbf-mysql
+        image: mysql:5.7
+        environment:
+            MYSQL_DATABASE: "SBF_MODELS"
+            MYSQL_USER: "root"
+            MYSQL_ROOT_PASSWORD: "password"
+        ports:
+            - "3306"
+        volumes:
+            - "sbf-mysql-data:/var/lib/mysql"
+
+    sbf-manager:
+        hostname: sbf-manager
+        networks:
+            - las2peernet
+        container_name: sbf-manager
+        depends_on: ["sbf-mysql"]
+        image: registry.tech4comp.dbis.rwth-aachen.de/rwthacis/social-bot-manager:develop
+        environment:
+            LAS2PEER_PORT: "32014"
+            BOOTSTRAP: "mobsos-data-processing:32011"
+            LAS2PEER_ETH_HOST: "ethereum:8545"
+            NODE_ID_SEED: "8"
+            WALLET: "1"
+            DATABASE_NAME: "SBF_MODELS"
+            DATABASE_HOST: "sbf-mysql"
+            DATABASE_PORT: "3306"
+            DATABASE_USER: "root"
+            DATABASE_PASSWORD: "password"
+        ports:
+            - "32014:32014"
+            - "32014:32014/udp"
+            - "32015:8080"
+        volumes:
+            - "las2peer-nodestorage:/app/las2peer/node-storage"
+            - "./registry-config.properties:/src/etc/i5.las2peer.registry.data.RegistryConfiguration.properties"
+volumes:
+    las2peer-nodestorage:
+    sbf-mysql-data:

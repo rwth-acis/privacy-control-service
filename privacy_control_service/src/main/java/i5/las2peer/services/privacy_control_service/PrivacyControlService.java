@@ -1,7 +1,6 @@
-package i5.las2peer.services.privacyControlService;
+package i5.las2peer.services.privacy_control_service;
 
 import java.io.InputStream;
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
@@ -12,8 +11,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.logging.Level;
 
-import javax.annotation.security.PermitAll;
-import javax.print.attribute.standard.Media;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
@@ -39,9 +36,7 @@ import org.json.JSONTokener;
 import org.web3j.tuples.generated.Tuple3;
 import org.web3j.tuples.generated.Tuple4;
 
-import com.fasterxml.jackson.databind.annotation.JsonAppend.Prop;
 import com.google.common.hash.HashCode;
-import com.google.common.hash.Hashing;
 
 import i5.las2peer.api.Context;
 import i5.las2peer.logging.L2pLogger;
@@ -51,12 +46,11 @@ import i5.las2peer.registry.Util;
 import i5.las2peer.registry.exceptions.EthereumException;
 import i5.las2peer.restMapper.RESTService;
 import i5.las2peer.restMapper.annotations.ServicePath;
-import i5.las2peer.security.Mediator;
 import i5.las2peer.security.ServiceAgentImpl;
-import i5.las2peer.services.privacyControlService.AuthenticationUtility.Role;
-import i5.las2peer.services.privacyControlService.smartContracts.DataProcessingPurposes;
-import i5.las2peer.services.privacyControlService.smartContracts.PrivacyConsentRegistry;
-import i5.las2peer.services.privacyControlService.smartContracts.XAPIVerificationRegistry;
+import i5.las2peer.services.privacy_control_service.AuthenticationUtility.Role;
+import i5.las2peer.services.privacy_control_service.smart_contracts.DataProcessingPurposes;
+import i5.las2peer.services.privacy_control_service.smart_contracts.PrivacyConsentRegistry;
+import i5.las2peer.services.privacy_control_service.smart_contracts.XAPIVerificationRegistry;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
@@ -64,7 +58,6 @@ import io.swagger.annotations.Contact;
 import io.swagger.annotations.Info;
 import io.swagger.annotations.License;
 import io.swagger.annotations.SwaggerDefinition;
-import jnr.ffi.Struct.int16_t;
 import model.Course;
 import model.Manager;
 import model.Purpose;
@@ -153,7 +146,7 @@ public class PrivacyControlService extends RESTService {
 
 		// TODO: Put parameters into environment variables
 		database = new DBUtility();
-		boolean dbflag = database.establishConnection("localhost", 1433, "PrivacyServiceDB", "SA", "privacyIS#1important!");
+		boolean dbflag = database.establishConnection("pcs-mssql", 1433, "PrivacyServiceDB", "SA", "privacyIS#1important!");
 		if (!dbflag) {
 			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
 			return Response.serverError().entity("Error while connecting to service's database").build();
@@ -1178,6 +1171,11 @@ public class PrivacyControlService extends RESTService {
 		}
 		
 		return retVal;
+	}
+	
+	public String testRMI(String testStr) {
+		logger.info("PCS receieved: " + testStr);
+		return testStr + "_verified";
 	}
 	
 	/////////////////////////////////////////////////////////////////////////////////

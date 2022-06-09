@@ -15,7 +15,7 @@ import i5.las2peer.connectors.webConnector.client.MiniClient;
 import i5.las2peer.p2p.LocalNode;
 import i5.las2peer.p2p.LocalNodeManager;
 import i5.las2peer.security.UserAgentImpl;
-import i5.las2peer.services.privacyControlService.PrivacyControlService;
+import i5.las2peer.services.privacy_control_service.PrivacyControlService;
 import i5.las2peer.testing.MockAgentFactory;
 
 /**

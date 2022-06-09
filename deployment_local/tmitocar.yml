@@ -1,0 +1,25 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    tmitocar:
+        hostname: tmitocar
+        networks:
+            - las2peernet
+        container_name: tmitocar
+        image: registry.tech4comp.dbis.rwth-aachen.de/rwthacis/tmitocar:develop
+        environment:
+            LAS2PEER_PORT: "32017"
+            BOOTSTRAP: "mobsos-data-processing:32011"
+            #LAS2PEER_ETH_HOST: "ethereum:8545"
+            #NODE_ID_SEED: "8"
+            WALLET: "1"
+            PUBLIC_KEY: ""
+            PRIVATE_KEY: ""
+        ports:
+            - "32014:32014"
+            - "32014:32014/udp"
+            - "32015:8080"
+volumes:
+    sbf-mysql-data:

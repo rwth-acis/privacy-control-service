@@ -1,4 +1,5 @@
-startService("i5.las2peer.services.privacyControlService.PrivacyControlService@0.1.0")
+startService("i5.las2peer.services.privacy_control_service.PrivacyControlService@0.1.0")
+startService("i5.las2peer.services.moodleDataProxyService.MoodleDataProxyService@1.3.0")
 
 solcjs .\smart_contracts\PrivacyConsentRegistry.sol --bin --abi --optimize -o .\smart_contracts\build\
 solcjs .\smart_contracts\DataProcessingPurposes.sol --bin --abi --optimize -o .\smart_contracts\build\

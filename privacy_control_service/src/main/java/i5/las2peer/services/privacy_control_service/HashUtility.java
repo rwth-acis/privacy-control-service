@@ -1,4 +1,4 @@
-package i5.las2peer.services.privacyControlService;
+package i5.las2peer.services.privacy_control_service;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
