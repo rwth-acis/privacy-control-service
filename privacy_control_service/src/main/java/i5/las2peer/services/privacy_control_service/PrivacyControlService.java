@@ -39,6 +39,8 @@ import org.web3j.tuples.generated.Tuple4;
 import com.google.common.hash.HashCode;
 
 import i5.las2peer.api.Context;
+import i5.las2peer.api.security.Agent;
+import i5.las2peer.api.security.ServiceAgent;
 import i5.las2peer.logging.L2pLogger;
 import i5.las2peer.p2p.EthereumNode;
 import i5.las2peer.registry.ReadWriteRegistryClient;
@@ -86,6 +88,14 @@ public class PrivacyControlService extends RESTService {
 	// TODO: put in environment variable
 	public static final String FIRST_DPO_EMAIL = "jovanovic.boris@rwth-aachen.de";
 	public static final String AUTHENTICATION_HEADER_NAME = "access_token";
+	
+	public final static String DB_URL = "pcs-mssql";
+	public final static int DB_PORT = 1433;
+	public final static String DB_NAME = "PrivacyServiceDB";
+	private final static String DB_USERNAME = "SA";
+	private final static String DB_PASSWORD = "privacyIS#1important!";
+	
+	public final static String LAS2PEER_GET_SERVICES_ENDPOINT = "http://las2peer-bootstrap:8080/las2peer/getOtherNodesInfo";
 
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
@@ -137,16 +147,14 @@ public class PrivacyControlService extends RESTService {
 			logger.severe("Could not load DataProcessingPurposes smart contract.");
 			return Response.serverError().entity("Error getting contract: DataProcessingPurposes.").build();
 		}
-		// TODO: set correct registry
 		if (verificationRegisrty == null) {
 			logger.severe("Could not load XAPIVerificationRegistry smart contract.");
 			return Response.serverError().entity("Error getting contract: XAPIVerificationRegistry.").build();
 		}
 		logger.info("Blockchain registries loaded.");
 
-		// TODO: Put parameters into environment variables
 		database = new DBUtility();
-		boolean dbflag = database.establishConnection("pcs-mssql", 1433, "PrivacyServiceDB", "SA", "privacyIS#1important!");
+		boolean dbflag = database.establishConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
 		if (!dbflag) {
 			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
 			return Response.serverError().entity("Error while connecting to service's database").build();
@@ -201,7 +209,7 @@ public class PrivacyControlService extends RESTService {
 		
 
 	/////////////////////////////////////////////////////////////////////////////////
-	///                                  CRUD                                     ///
+	///                          CRUD (mostly from frontend)                      ///
 	/////////////////////////////////////////////////////////////////////////////////
 
 	@POST
@@ -824,6 +832,23 @@ public class PrivacyControlService extends RESTService {
 
 	}
 	
+	
+	/**
+	 * Helper method to retrieve a user's consent. The resulting purposes hold only the
+	 * values of purposes which are current, i.e. their version is the same as the current
+	 * version in the DataPurposesRegistry.
+	 * 
+	 * @param userID ID (email) of the user.
+	 * @param serviceID ID (las2peer service name) of the service.
+	 * @param courseID Internal ID that service uses to identify course.
+	 * @return A tuple consisting of, in order: 
+	 * <ol>
+	 * 	<li> A list of ID's of the purposes for which the user has given consent, wrt. course and service. </li>
+	 * 	<li> The versions of the purposes, which IDs are in the first list, ordered the same way. </li>
+	 * 	<li> The timestamp of when the consent was given. </li>
+	 * </ol>
+	 * @throws Exception if the DataPurposesRegistry or PrivacyConsentRegistry couldn't be reached.
+	 */
 	private Tuple3<List<Integer>, List<Integer>, BigInteger> getConsent(
 			String userID,
 			String serviceID,
@@ -966,173 +991,17 @@ public class PrivacyControlService extends RESTService {
 	///                            Collected data                                 ///
 	/////////////////////////////////////////////////////////////////////////////////
 	
-	@GET
-	@Path("/collected-data/{serviceid}/{courseid}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response getCollectedData(
-			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
-			@PathParam(value = "serviceid") String serviceID,
-			@PathParam(value = "courseid") String courseID) {
-		//TODO: Add authorisation and authentication 
-		
-		StatementUtility tmpStatements = new StatementUtility();
-		
-		// TODO: Add retrieval from LRS and hashCheck with blockchain
-		
-		JSONArray retVal = new JSONArray();
-		retVal.put(tmpStatements.getStatement1());
-		retVal.put(tmpStatements.getStatement2());
-		retVal.put(tmpStatements.getStatement3());
-		
-		return Response.ok().entity(retVal.toString()).build();
-	}
 	
-	
-	@POST
-	@Path("/try-hash")
-	@Consumes(MediaType.APPLICATION_JSON)
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response tryHash(InputStream input) {
-		JSONTokener tokener = new JSONTokener(input);
-		JSONArray dataJSON = null;
-		try {
-			dataJSON = new JSONArray(tokener);
-		} catch (JSONException e) {
-			//logger.warning("Could not parse JSON in POST Consent request.");
-			e.printStackTrace();
-			return Response.status(400).entity("Invalid JSON.").build();
-		}
-		
-		JSONObject statement1 = dataJSON.getJSONObject(0);
-		JSONObject statement2 = dataJSON.getJSONObject(1);
-		JSONObject statement3 = dataJSON.getJSONObject(2);
-		
-		
-		JSONObject core1 = statUtil.extractCoreStatement(statement1.getJSONObject("statement"));
-		JSONObject core2 = statUtil.extractCoreStatement(statement2.getJSONObject("statement"));
-		JSONObject core3 = statUtil.extractCoreStatement(statement3.getJSONObject("statement"));
-		
-		String hash1 = HashUtility.hash(core1.toString());
-		String hash2 = HashUtility.hash(core2.toString());
-		String hash3 = HashUtility.hash(core3.toString());
-		
-		JSONArray retVal = new JSONArray();
-		retVal.put(hash1);
-		retVal.put(hash2);
-		retVal.put(hash3);
-		
-		return Response.ok(retVal.toString()).build();
-	}
-	
-	@POST
-	@Path("/forward-statement")
-	@Consumes(MediaType.APPLICATION_JSON)
-	public Response forwardStatement(InputStream input) {
-		if (!serviceInitialised) {
-			return Response.status(500).entity("Service not initialised").build();
-		}
-		// TODO: get service id from service agent info
-		String serviceID = "NEVERPUTSPACE";
-		
-		JSONTokener tokener = new JSONTokener(input);
-		JSONObject entryJSON = null;
-		JSONObject statementJSON = null;
-		int purposeID;
-		String courseID;
-		try {
-			entryJSON = new JSONObject(tokener);
-			statementJSON = entryJSON.getJSONObject("statement");
-			purposeID = entryJSON.getInt("purpose");
-			courseID = entryJSON.getString("course");
-		} catch (JSONException e) {
-			//logger.warning("Could not parse JSON in POST Consent request.");
-			e.printStackTrace();
-			return Response.status(400).entity("Invalid JSON.").build();
-		}
-		
-		String userID = statUtil.getActorEmail(statementJSON);
-		if (userID == null) {
-			return Response.status(400).entity("Invalid xAPI Statement: Missing actor account email.").build();
-		}
-		
-		// Check user consent
-		List<Integer> purposeIDs;
-		List<Integer> purposeVersions;
-		try {
-			Tuple3<List<Integer>, List<Integer>, BigInteger> tuple = 
-					getConsent(userID, serviceID, courseID);
-			purposeIDs = tuple.component1();
-			purposeVersions = tuple.component2();
-		} catch (Exception e) {
-			return Response.serverError().entity("Blockchain issue.").build();
-		}
-		
-		int purposeIndex = purposeIDs.indexOf(purposeID);
-		if (purposeIndex < 0) {
-			// The user did not give permission
-			return Response.status(403).entity("User did not give consent.").build();
-		}
-		int purposeVersion = purposeVersions.get(purposeIndex);
-		
-		logger.info("Attempting to log entry in xAPIVerificationRegistry:");
-		// Log to verification registry
-		byte[] bUserID = HashUtility.hashForBlockchainByte(userID);
-		logger.info("User ID and hash: " + userID + " -> " + HashCode.fromBytes(bUserID));
-		String data = statUtil.extractCoreStatement(statementJSON).toString();
-		byte[] bDataHash = HashUtility.hashForBlockchainByte(data);
-		logger.info("Data hash: " + bDataHash.toString());
-		BigInteger bPurposeCode = BigInteger.valueOf(purposeID);
-		logger.info("Purpose Code: " + bPurposeCode);
-		BigInteger bPurposeVersion = BigInteger.valueOf(purposeVersion);
-		logger.info("Purpose Version: " + bPurposeVersion);
-		
-		try {
-			verificationRegisrty.enterLogEntry(bUserID, bDataHash, bPurposeCode, bPurposeVersion).send();
-		} catch (Exception e) {
-			logger.severe("Could not execute EnterLogEntry of xAPIVerificationRegistry.");
-			e.printStackTrace();
-			return Response.serverError().entity("Blockchain issue.").build();
-		}
-
-		
-		// Forward to LRS (through learning locker)
-		Client lrsClient = ClientBuilder.newClient();
-		WebTarget target = lrsClient.target("https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements");
-		Invocation.Builder invocationBuilder = target.request();
-		invocationBuilder.header(HttpHeaders.AUTHORIZATION, "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0");
-		invocationBuilder.header("X-Experience-API-Version", "1.0.3");
-		Response postResponse = invocationBuilder.post(Entity.entity(statementJSON.toString(), MediaType.APPLICATION_JSON));
-		logger.info("Done.");
-		return Response.ok().build();
-	}
-	
-	
-	@POST
-	@Path("/try-verify")
-	@Consumes(MediaType.APPLICATION_JSON)
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response tryVerify(InputStream input) {
-		JSONTokener tokener = new JSONTokener(input);
-		JSONArray dataJSON = null;
-		try {
-			dataJSON = new JSONArray(tokener);
-		} catch (JSONException e) {
-			//logger.warning("Could not parse JSON in POST Consent request.");
-			e.printStackTrace();
-			return Response.status(400).entity("Invalid JSON.").build();
-		}
-		
-		JSONArray retVal = null;
-		try {
-			 retVal = verifyStatements("jovanovic.boris@rwth-aachen.de", dataJSON);
-		} catch (Exception e) {
-			e.printStackTrace();
-			return Response.serverError().build();
-		}
-		
-		return Response.ok().entity(retVal.toString()).build();
-	}
-	
+	/**
+	 * Helper method which makes a call to the blockchain to verify that given statements
+	 * have been previously stored in the xAPIVerificationRegistry as hashes.
+	 * 
+	 * @param userID ID (email) of the user.
+	 * @param statements JSON array containing xAPI Statements (as JSON objects) that should be verified.
+	 * @return A JSON array containing the same statements as given, with a boolean value
+	 * indication if the statement is verified or not.
+	 * @throws Exception If there is a problem with reaching the blockchain and/or the registry.
+	 */
 	private JSONArray verifyStatements(
 			String userID,
 			JSONArray statements
@@ -1173,14 +1042,122 @@ public class PrivacyControlService extends RESTService {
 		return retVal;
 	}
 	
-	public String testRMI(String testStr) {
-		logger.info("PCS receieved: " + testStr);
-		return testStr + "_verified";
+	@GET
+	@Path("/collected-data/{serviceid}/{courseid}")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getCollectedData(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID) {
+		//TODO: Add authorisation and authentication 
+		
+		StatementUtility tmpStatements = new StatementUtility();
+		
+		// TODO: Add retrieval from LRS and hashCheck with blockchain
+		
+		JSONArray retVal = new JSONArray();
+		retVal.put(tmpStatements.getStatement1());
+		retVal.put(tmpStatements.getStatement2());
+		retVal.put(tmpStatements.getStatement3());
+		
+		return Response.ok().entity(retVal.toString()).build();
 	}
+	
+	// TODO: Remove this
+	@POST
+	@Path("/try-hash")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response tryHash(InputStream input) {
+		JSONTokener tokener = new JSONTokener(input);
+		JSONArray dataJSON = null;
+		try {
+			dataJSON = new JSONArray(tokener);
+		} catch (JSONException e) {
+			//logger.warning("Could not parse JSON in POST Consent request.");
+			e.printStackTrace();
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		JSONObject statement1 = dataJSON.getJSONObject(0);
+		JSONObject statement2 = dataJSON.getJSONObject(1);
+		JSONObject statement3 = dataJSON.getJSONObject(2);
+		
+		
+		JSONObject core1 = statUtil.extractCoreStatement(statement1.getJSONObject("statement"));
+		JSONObject core2 = statUtil.extractCoreStatement(statement2.getJSONObject("statement"));
+		JSONObject core3 = statUtil.extractCoreStatement(statement3.getJSONObject("statement"));
+		
+		String hash1 = HashUtility.hash(core1.toString());
+		String hash2 = HashUtility.hash(core2.toString());
+		String hash3 = HashUtility.hash(core3.toString());
+		
+		JSONArray retVal = new JSONArray();
+		retVal.put(hash1);
+		retVal.put(hash2);
+		retVal.put(hash3);
+		
+		return Response.ok(retVal.toString()).build();
+	}
+	
+	// TODO: Remove this
+	@POST
+	@Path("/try-verify")
+	@Consumes(MediaType.APPLICATION_JSON)
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response tryVerify(InputStream input) {
+		JSONTokener tokener = new JSONTokener(input);
+		JSONArray dataJSON = null;
+		try {
+			dataJSON = new JSONArray(tokener);
+		} catch (JSONException e) {
+			//logger.warning("Could not parse JSON in POST Consent request.");
+			e.printStackTrace();
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		JSONArray retVal = null;
+		try {
+			 retVal = verifyStatements("jovanovic.boris@rwth-aachen.de", dataJSON);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return Response.serverError().build();
+		}
+		
+		return Response.ok().entity(retVal.toString()).build();
+	}
+	
+	
+	
 	
 	/////////////////////////////////////////////////////////////////////////////////
 	///                                Purpose                                    ///
 	/////////////////////////////////////////////////////////////////////////////////
+	
+	
+	/**
+	 * Helper method to retrieve Purpose data from the DataProcessingPurposes blockchain
+	 * registry.
+	 * 
+	 * @param purposeID ID (code) of the purpose.
+	 * @return Purpose class object if the purpose exists in the blockchain, otherwise null.
+	 */
+	private Purpose getPurposeBlockchain(int purposeID) {
+		
+		logger.info("Attempting to get purpose with ID: " + purposeID);
+		try {
+			Tuple3<String, String, BigInteger> tuple = purposesRegistry.getPurpose(BigInteger.valueOf(purposeID))
+					.send();
+			Purpose purpose = new Purpose(purposeID, tuple.component1(), tuple.component2(),
+					tuple.component3().intValue());
+			logger.info("Got Purpose: " + purpose);
+			return purpose;
+		} catch (Exception e) {
+			logger.severe("Error while trying to get purpose list item.");
+			e.printStackTrace();
+			return null;
+		}
+	}
 	
 	@SuppressWarnings("unchecked")
 	@GET
@@ -1226,23 +1203,6 @@ public class PrivacyControlService extends RESTService {
 
 		logger.info("Done.");
 		return Response.ok(retVal.toString()).build();
-	}
-	
-	public Purpose getPurposeBlockchain(int purposeID) {
-		
-		logger.info("Attempting to get purpose with ID: " + purposeID);
-		try {
-			Tuple3<String, String, BigInteger> tuple = purposesRegistry.getPurpose(BigInteger.valueOf(purposeID))
-					.send();
-			Purpose purpose = new Purpose(purposeID, tuple.component1(), tuple.component2(),
-					tuple.component3().intValue());
-			logger.info("Got Purpose: " + purpose);
-			return purpose;
-		} catch (Exception e) {
-			logger.severe("Error while trying to get purpose list item.");
-			e.printStackTrace();
-			return null;
-		}
 	}
 
 	@GET
@@ -1333,4 +1293,316 @@ public class PrivacyControlService extends RESTService {
 		String hash = HashUtility.hash(input, String.valueOf(random.nextInt()));
 		return Response.ok(hash).build();
 	}
+	
+	
+	/////////////////////////////////////////////////////////////////////////////////
+	///                                Incoming RMI                               ///
+	/////////////////////////////////////////////////////////////////////////////////	
+	
+	/**
+	 * This method facilitates the Data Processing Request that data collectors, such
+	 * as data proxies, call in order to get information on a users consent data and
+	 * pseudonym for the given course.
+	 * 
+	 * @param studentID ID (email) of the user.
+	 * @param courseID The service's internal ID of the course.
+	 * @return JSON String containing the purpose IDs of purposes that the user
+	 * has given consent to and the user's pseudonym for the course. If the user has
+	 * not been enrolled in the course or the service isn't registered or if there is
+	 * any other error, null is returned instead.
+	 */
+	public String dataProcessingRequest(String studentID, String courseID) {
+		if (!serviceInitialised) {
+			return null;
+		}
+		
+		Agent mainAgent = Context.get().getMainAgent();
+		ServiceAgent callerService = null;
+		if (mainAgent instanceof ServiceAgent) {
+			callerService = (ServiceAgent) mainAgent;
+		}
+		else {
+			// Unknown what should happen if caller isn't a service
+			return null;
+		}
+		String serviceID = callerService.getServiceNameVersion().getName();
+		
+		logger.info("PCS received Data Processing Request: \n"
+				+ "		Service: " + serviceID + "\n"
+				+ "		Course: " + courseID + "\n"
+				+ "		Student: " + studentID);
+		
+		// Check if service is registered
+		JSONObject serviceJSON = database.SelectService(serviceID);
+		if (serviceJSON == null || serviceJSON.isEmpty()) {
+			logger.warning("Unregistered caller service in PCS Data Processing Request. "
+					+ "Request denied.");
+			return null;
+		}
+		
+		// Get user's current consent
+		Tuple3<List<Integer>, List<Integer>, BigInteger> consentTuple;
+		try {
+			consentTuple = getConsent(studentID, serviceID, courseID);
+		} catch (Exception e) {
+			logger.severe("Blockchain error.");
+			return null;
+		}
+		
+		// Add purpose ID array
+		JSONObject retVal = new JSONObject();
+		JSONArray purposes = new JSONArray();
+		for (int purposeID : consentTuple.component1()) {
+			purposes.put(purposeID);
+		}
+		retVal.put("purposes", purposes);
+		
+		// Get pseudonym
+		String pseudonym = database.SelectStudentPseudonym(studentID, serviceID, courseID);
+		if (pseudonym == null) {
+			logger.warning("PCS Data Processing Request error: Student not registered in service course.");
+			return null;
+		}
+		retVal.put("pseudonym", pseudonym);
+				
+		return retVal.toString();
+	}
+	
+	@POST
+	@Path("/forward-statement")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response forwardStatement(InputStream input) {
+		if (!serviceInitialised) {
+			return Response.status(500).entity("Service not initialised").build();
+		}
+		// TODO: get service id from service agent info
+		String serviceID = "NEVERPUTSPACE";
+		
+		JSONTokener tokener = new JSONTokener(input);
+		JSONObject entryJSON = null;
+		JSONObject statementJSON = null;
+		int purposeID;
+		String courseID;
+		try {
+			entryJSON = new JSONObject(tokener);
+			statementJSON = entryJSON.getJSONObject("statement");
+			purposeID = entryJSON.getInt("purpose");
+			courseID = entryJSON.getString("course");
+		} catch (JSONException e) {
+			//logger.warning("Could not parse JSON in POST Consent request.");
+			e.printStackTrace();
+			return Response.status(400).entity("Invalid JSON.").build();
+		}
+		
+		String userID = statUtil.getActorEmail(statementJSON);
+		if (userID == null) {
+			return Response.status(400).entity("Invalid xAPI Statement: Missing actor account email.").build();
+		}
+		
+		// Check user consent
+		List<Integer> purposeIDs;
+		List<Integer> purposeVersions;
+		try {
+			Tuple3<List<Integer>, List<Integer>, BigInteger> tuple = 
+					getConsent(userID, serviceID, courseID);
+			purposeIDs = tuple.component1();
+			purposeVersions = tuple.component2();
+		} catch (Exception e) {
+			return Response.serverError().entity("Blockchain issue.").build();
+		}
+		
+		int purposeIndex = purposeIDs.indexOf(purposeID);
+		if (purposeIndex < 0) {
+			// The user did not give permission
+			return Response.status(403).entity("User did not give consent.").build();
+		}
+		int purposeVersion = purposeVersions.get(purposeIndex);
+		
+		logger.info("Attempting to log entry in xAPIVerificationRegistry:");
+		// Log to verification registry
+		byte[] bUserID = HashUtility.hashForBlockchainByte(userID);
+		logger.info("User ID and hash: " + userID + " -> " + HashCode.fromBytes(bUserID));
+		String data = statUtil.extractCoreStatement(statementJSON).toString();
+		byte[] bDataHash = HashUtility.hashForBlockchainByte(data);
+		logger.info("Data hash: " + bDataHash.toString());
+		BigInteger bPurposeCode = BigInteger.valueOf(purposeID);
+		logger.info("Purpose Code: " + bPurposeCode);
+		BigInteger bPurposeVersion = BigInteger.valueOf(purposeVersion);
+		logger.info("Purpose Version: " + bPurposeVersion);
+		
+		try {
+			verificationRegisrty.enterLogEntry(bUserID, bDataHash, bPurposeCode, bPurposeVersion).send();
+		} catch (Exception e) {
+			logger.severe("Could not execute EnterLogEntry of xAPIVerificationRegistry.");
+			e.printStackTrace();
+			return Response.serverError().entity("Blockchain issue.").build();
+		}
+
+		
+		// Forward to LRS (through learning locker)
+		Client lrsClient = ClientBuilder.newClient();
+		WebTarget target = lrsClient.target("https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements");
+		Invocation.Builder invocationBuilder = target.request();
+		invocationBuilder.header(HttpHeaders.AUTHORIZATION, "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0");
+		invocationBuilder.header("X-Experience-API-Version", "1.0.3");
+		Response postResponse = invocationBuilder.post(Entity.entity(statementJSON.toString(), MediaType.APPLICATION_JSON));
+		logger.info("Done.");
+		return Response.ok().build();
+	}
+	
+	
+	public boolean forwardStatement(String requestBody) {
+		if (!serviceInitialised) {
+			return false;
+		}
+		
+		logger.info("PCS received Forward Statement request.");
+		
+		Agent mainAgent = Context.get().getMainAgent();
+		ServiceAgent callerService = null;
+		if (mainAgent instanceof ServiceAgent) {
+			callerService = (ServiceAgent) mainAgent;
+		}
+		else {
+			// Unknown what should happen if caller isn't a service
+			return false;
+		}
+		String serviceID = callerService.getServiceNameVersion().getName();
+		
+		logger.info("Caller service ID is: " + serviceID);
+		
+		JSONTokener tokener = new JSONTokener(requestBody);
+		JSONObject entryJSON = null;
+		JSONObject statementJSON = null;
+		int purposeID;
+		String courseID;
+		try {
+			entryJSON = new JSONObject(tokener);
+			statementJSON = entryJSON.getJSONObject("statement");
+			purposeID = entryJSON.getInt("purpose");
+			courseID = entryJSON.getString("course");
+		} catch (JSONException e) {
+			logger.warning("Could not parse JSON body of Forward Statement request.");
+			return false;
+		}
+		
+		String studentPseudonym = statUtil.getActorEmail(statementJSON);
+		if (studentPseudonym == null) {
+			logger.warning("Invalid xAPI Statement: Missing actor account details.");
+			return false;
+		}
+		
+		String studentID = database.SelectStudentWithPseudonym(studentPseudonym, serviceID, courseID);
+		if (studentID == null) {
+			logger.warning("Error in Forward Statement, possibly wrong pseudonym.");
+			return false;
+		}
+		
+		// Check user consent
+		List<Integer> purposeIDs;
+		List<Integer> purposeVersions;
+		try {
+			Tuple3<List<Integer>, List<Integer>, BigInteger> tuple = 
+					getConsent(studentID, serviceID, courseID);
+			purposeIDs = tuple.component1();
+			purposeVersions = tuple.component2();
+		} catch (Exception e) {
+			logger.severe("Blockchain error in Forward Statement.");
+			return false;
+		}
+		
+		int purposeIndex = purposeIDs.indexOf(purposeID);
+		if (purposeIndex < 0) {
+			// The user did not give permission
+			logger.warning("Data collector [" + serviceID + "] calling Forward Statement "
+					+ "with data user has not consented to!");
+			return false;
+		}
+		int purposeVersion = purposeVersions.get(purposeIndex);
+		
+		logger.info("Attempting to log entry in xAPIVerificationRegistry:");
+		// Log to verification registry
+		byte[] bUserID = HashUtility.hashForBlockchainByte(studentID);
+		logger.info("Student ID and hash: " + studentID + " -> " + HashCode.fromBytes(bUserID));
+		String data = statUtil.extractCoreStatement(statementJSON).toString();
+		byte[] bDataHash = HashUtility.hashForBlockchainByte(data);
+		logger.info("Data hash: " + bDataHash.toString());
+		BigInteger bPurposeCode = BigInteger.valueOf(purposeID);
+		logger.info("Purpose Code: " + bPurposeCode);
+		BigInteger bPurposeVersion = BigInteger.valueOf(purposeVersion);
+		logger.info("Purpose Version: " + bPurposeVersion);
+		
+		try {
+			verificationRegisrty.enterLogEntry(bUserID, bDataHash, bPurposeCode, bPurposeVersion).send();
+		} catch (Exception e) {
+			logger.severe("Could not execute EnterLogEntry of xAPIVerificationRegistry.");
+			e.printStackTrace();
+			return false;
+		}
+		
+		// Forward to LRS (through learning locker)
+		// TODO: Make call to mobSOS instead of this
+		Client lrsClient = ClientBuilder.newClient();
+		WebTarget target = lrsClient.target("https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements");
+		Invocation.Builder invocationBuilder = target.request();
+		invocationBuilder.header(HttpHeaders.AUTHORIZATION, "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0");
+		invocationBuilder.header("X-Experience-API-Version", "1.0.3");
+		Response postResponse = invocationBuilder.post(Entity.entity(statementJSON.toString(), MediaType.APPLICATION_JSON));
+		logger.info("Done.");
+		return true;
+	}
+	
+	
+	/////////////////////////////////////////////////////////////////////////////////
+	///                               Outgoing HTTP                               ///
+	/////////////////////////////////////////////////////////////////////////////////
+	
+	@GET
+	@Path("/get-l2p-services")
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response getL2PServices() {
+		List<String> result = getLas2PeerServices();
+		JSONArray tmp = new JSONArray(result);
+		return Response.ok(tmp.toString()).build();
+	}	
+	
+	/**
+	 * This method makes a REST call to the main las2peer instance (bootstrap) to
+	 * get the names of all active services.
+	 * 
+	 * @return A List of Strings containing the names of the services (without their
+	 * versions).
+	 */
+	public List<String> getLas2PeerServices() {
+		List<String> retVal = new ArrayList<String>();
+		logger.info("BEFORE");
+		Client client = ClientBuilder.newClient();
+		WebTarget webTarget = client.target(LAS2PEER_GET_SERVICES_ENDPOINT);
+		Invocation.Builder invBuilder = webTarget.request(MediaType.APPLICATION_JSON);
+		invBuilder.header(HttpHeaders.AUTHORIZATION, "Basic YWxpY2U6cHdhbGljZQ==");
+		Response response = invBuilder.get();
+		String responceBody = response.readEntity(String.class);
+		logger.info(responceBody);
+		
+		JSONTokener tokener = new JSONTokener(responceBody);
+		try {
+			JSONArray nodesInfoJSON = new JSONArray(tokener);
+			for (Object node : nodesInfoJSON) {
+				JSONObject nodeJSON = (JSONObject) node;
+				JSONObject nodeInfoJSON = nodeJSON.getJSONObject("nodeInfo");
+				JSONArray nodeServicesJSON = nodeInfoJSON.getJSONArray("services");
+				for (Object service : nodeServicesJSON) {
+					JSONObject serviceJSON = (JSONObject) service;
+					String serviceName = serviceJSON.getString("service-name");
+					retVal.add(serviceName);
+				}
+			}
+		} catch (JSONException e) {
+			logger.warning("Error while getting node info from las2peer for finding services.");
+			return null;
+		}
+		
+		return retVal;
+	}
+	
 }

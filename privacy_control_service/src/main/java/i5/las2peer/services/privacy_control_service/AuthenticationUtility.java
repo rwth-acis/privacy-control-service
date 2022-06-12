@@ -55,7 +55,7 @@ public class AuthenticationUtility {
 		List<String> dpoEmails = db.SelectAllDPOs();
 		if (dpoEmails == null) {
 			logger.severe("Database not initialised, authentication not possible.");
-			//return false; fked if this happens, means someone didnt run the db setup script
+			//return false; fked if this happens, means someone didn't run the db setup script
 		}
 		
 		if (!dpoEmails.isEmpty()) {

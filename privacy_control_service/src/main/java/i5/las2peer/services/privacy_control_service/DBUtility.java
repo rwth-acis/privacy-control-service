@@ -48,10 +48,12 @@ public class DBUtility {
 	private PreparedStatement insertPurposeInCourse;
 	private PreparedStatement deletePurposesInCourse;
 	private PreparedStatement selectStudentsInCourse;
+	private PreparedStatement selectStudentPseudonym;
+	private PreparedStatement selectStudentWithPseudonym;
 	private PreparedStatement insertStudentInCourse;
 	private PreparedStatement selectCoursesWithStudent;
-	
 
+	
 	public static Connection getConnection() {
 		String connectionUrl =
                 "jdbc:sqlserver://" + DB_URL + ":" + DB_PORT + ";"
@@ -299,6 +301,24 @@ public class DBUtility {
 		text = "SELECT * FROM StudentInCourse WHERE serviceID=? AND courseID=?;";
 		try {
 			selectStudentsInCourse = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "SELECT pseudonym FROM StudentInCourse WHERE studentID=? AND serviceID=? AND courseID=?;";
+		try {
+			selectStudentPseudonym = dbcon.prepareStatement(text);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
+			e.printStackTrace();
+			return false;
+		}
+		
+		text = "SELECT studentID FROM StudentInCourse WHERE pseudonym=? AND serviceID=? AND courseID=?;";
+		try {
+			selectStudentWithPseudonym = dbcon.prepareStatement(text);
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Could not prepare statement: " + text);
 			e.printStackTrace();
@@ -748,6 +768,72 @@ public class DBUtility {
 			}
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Error while retrieving SelectStudentsInCourse results.");
+			e.printStackTrace();
+		}
+		
+		return retVal;
+	}
+	
+	public String SelectStudentPseudonym(String studentID, String serviceID, String courseID) {
+		try {
+			selectStudentPseudonym.setString(1, studentID);
+			selectStudentPseudonym.setString(2, serviceID);
+			selectStudentPseudonym.setString(3, courseID);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting SelectStudentPseudonym parameters.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		ResultSet result;
+		try {
+			result = selectStudentPseudonym.executeQuery();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing SelectStudentPseudonym query.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		String retVal = null;
+		try {
+			if (result.next()) {
+				retVal = result.getString("pseudonym");
+			}
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while retrieving SelectStudentPseudonym results.");
+			e.printStackTrace();
+		}
+		
+		return retVal;
+	}
+	
+	public String SelectStudentWithPseudonym(String pseudonym, String serviceID, String courseID) {
+		try {
+			selectStudentWithPseudonym.setString(1, pseudonym);
+			selectStudentWithPseudonym.setString(2, serviceID);
+			selectStudentWithPseudonym.setString(3, courseID);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while setting SelectStudentWithPseudonym parameters.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		ResultSet result;
+		try {
+			result = selectStudentWithPseudonym.executeQuery();
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while executing SelectStudentWithPseudonym query.");
+			e.printStackTrace();
+			return null;
+		}
+		
+		String retVal = null;
+		try {
+			if (result.next()) {
+				retVal = result.getString("studentID");
+			}
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Error while retrieving SelectStudentWithPseudonym results.");
 			e.printStackTrace();
 		}
 		
