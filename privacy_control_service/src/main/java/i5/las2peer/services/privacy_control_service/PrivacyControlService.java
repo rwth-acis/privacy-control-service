@@ -3,6 +3,8 @@ package i5.las2peer.services.privacy_control_service;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -96,6 +98,10 @@ public class PrivacyControlService extends RESTService {
 	private final static String DB_PASSWORD = "privacyIS#1important!";
 	
 	public final static String LAS2PEER_GET_SERVICES_ENDPOINT = "http://las2peer-bootstrap:8080/las2peer/getOtherNodesInfo";
+	
+	public final static String LRS_ACTOR_ACCOUNT_HOMEPAGE = "https://moodle.tech4comp.dbis.rwth-aachen.de/";
+	public final static String LRS_STATEMENT_ENDPOINT = "https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements";
+	public final static String LRS_CLIENT_AUTHORISATION = "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0";
 
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
@@ -1005,11 +1011,16 @@ public class PrivacyControlService extends RESTService {
 	private JSONArray verifyStatements(
 			String userID,
 			JSONArray statements
-			) throws Exception {
+			) {
 		
 		byte[] bUserID = HashUtility.hashForBlockchainByte(userID);
-		Tuple4<List<byte[]>, List<BigInteger>, List<BigInteger>, List<BigInteger>> tuple =
-				verificationRegisrty.getLogEntries(bUserID).send();
+		Tuple4<List<byte[]>, List<BigInteger>, List<BigInteger>, List<BigInteger>> tuple;
+		try {
+			tuple = verificationRegisrty.getLogEntries(bUserID).send();
+		} catch (Exception e) {
+			logger.severe("Could not retrieve data from xAPI Verification Registry during verifyStatements.");
+			return null;
+		}
 		
 		List<byte[]> dataHashes = tuple.component1();
 		logger.info("[");
@@ -1042,6 +1053,22 @@ public class PrivacyControlService extends RESTService {
 		return retVal;
 	}
 	
+	private JSONArray processCollectedDataResponse(JSONArray verifiedStatements) {
+		JSONArray retVal = new JSONArray();
+		for (Object item : verifiedStatements) {
+			JSONObject itemJSON = (JSONObject) item;
+			JSONObject statement = itemJSON.getJSONObject("statement");
+			String timestamp = statement.getString("timestamp");
+			String verbName = statUtil.getVerbDisplayName(statement);
+			String objectName = statUtil.getObjectName(statement);
+			itemJSON.put("timestamp", timestamp);
+			itemJSON.put("verb", verbName);
+			itemJSON.put("object", objectName);
+			retVal.put(itemJSON);
+		}
+		return retVal;
+	}
+	
 	@GET
 	@Path("/collected-data/{serviceid}/{courseid}")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -1049,86 +1076,32 @@ public class PrivacyControlService extends RESTService {
 			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
 			@PathParam(value = "serviceid") String serviceID,
 			@PathParam(value = "courseid") String courseID) {
-		//TODO: Add authorisation and authentication 
-		
-		StatementUtility tmpStatements = new StatementUtility();
-		
-		// TODO: Add retrieval from LRS and hashCheck with blockchain
-		
-		JSONArray retVal = new JSONArray();
-		retVal.put(tmpStatements.getStatement1());
-		retVal.put(tmpStatements.getStatement2());
-		retVal.put(tmpStatements.getStatement3());
-		
-		return Response.ok().entity(retVal.toString()).build();
-	}
-	
-	// TODO: Remove this
-	@POST
-	@Path("/try-hash")
-	@Consumes(MediaType.APPLICATION_JSON)
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response tryHash(InputStream input) {
-		JSONTokener tokener = new JSONTokener(input);
-		JSONArray dataJSON = null;
-		try {
-			dataJSON = new JSONArray(tokener);
-		} catch (JSONException e) {
-			//logger.warning("Could not parse JSON in POST Consent request.");
-			e.printStackTrace();
-			return Response.status(400).entity("Invalid JSON.").build();
+		if (!serviceInitialised) {
+			return Response.status(500).entity("Service not initialised").build();
 		}
 		
-		JSONObject statement1 = dataJSON.getJSONObject(0);
-		JSONObject statement2 = dataJSON.getJSONObject(1);
-		JSONObject statement3 = dataJSON.getJSONObject(2);
-		
-		
-		JSONObject core1 = statUtil.extractCoreStatement(statement1.getJSONObject("statement"));
-		JSONObject core2 = statUtil.extractCoreStatement(statement2.getJSONObject("statement"));
-		JSONObject core3 = statUtil.extractCoreStatement(statement3.getJSONObject("statement"));
-		
-		String hash1 = HashUtility.hash(core1.toString());
-		String hash2 = HashUtility.hash(core2.toString());
-		String hash3 = HashUtility.hash(core3.toString());
-		
-		JSONArray retVal = new JSONArray();
-		retVal.put(hash1);
-		retVal.put(hash2);
-		retVal.put(hash3);
-		
-		return Response.ok(retVal.toString()).build();
-	}
-	
-	// TODO: Remove this
-	@POST
-	@Path("/try-verify")
-	@Consumes(MediaType.APPLICATION_JSON)
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response tryVerify(InputStream input) {
-		JSONTokener tokener = new JSONTokener(input);
-		JSONArray dataJSON = null;
-		try {
-			dataJSON = new JSONArray(tokener);
-		} catch (JSONException e) {
-			//logger.warning("Could not parse JSON in POST Consent request.");
-			e.printStackTrace();
-			return Response.status(400).entity("Invalid JSON.").build();
+		// Authentication and authorisation
+		String tokenUserID = auth.checkUserToken(access_token);
+		if (tokenUserID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(tokenUserID, Role.STUDENT))) {
+			return Response.status(403).build();
 		}
 		
-		JSONArray retVal = null;
-		try {
-			 retVal = verifyStatements("jovanovic.boris@rwth-aachen.de", dataJSON);
-		} catch (Exception e) {
-			e.printStackTrace();
-			return Response.serverError().build();
+		String studentID = tokenUserID;
+		// Get pseudonym
+		String studentPseudonym = database.SelectStudentPseudonym(studentID, serviceID, courseID);
+		if (studentPseudonym == null) {
+			return Response.status(400).build();
 		}
+		JSONArray lrsStatements = retrieveStatementsFromLRS(studentPseudonym);
 		
-		return Response.ok().entity(retVal.toString()).build();
+		JSONArray verifiedStatements = verifyStatements(studentID, lrsStatements);
+		JSONArray processedStatements = processCollectedDataResponse(verifiedStatements);
+		
+		return Response.ok().entity(processedStatements.toString()).build();
 	}
-	
-	
-	
 	
 	/////////////////////////////////////////////////////////////////////////////////
 	///                                Purpose                                    ///
@@ -1542,6 +1515,7 @@ public class PrivacyControlService extends RESTService {
 		
 		// Forward to LRS (through learning locker)
 		// TODO: Make call to mobSOS instead of this
+		// TODO: Each service+course should have their own store! <- NOT NECESSARY: each student+course+store has its own pseudonym
 		Client lrsClient = ClientBuilder.newClient();
 		WebTarget target = lrsClient.target("https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements");
 		Invocation.Builder invocationBuilder = target.request();
@@ -1601,6 +1575,33 @@ public class PrivacyControlService extends RESTService {
 			logger.warning("Error while getting node info from las2peer for finding services.");
 			return null;
 		}
+		
+		return retVal;
+	}
+	
+	private JSONArray retrieveStatementsFromLRS(String studentPseudonym) {
+		JSONObject main = new JSONObject();
+		JSONObject account = new JSONObject();
+		account.put("name", studentPseudonym);
+		account.put("homePage", LRS_ACTOR_ACCOUNT_HOMEPAGE);
+		main.put("account", account);
+		String queryParam = URLEncoder.encode(main.toString(), StandardCharsets.UTF_8);
+		String url = LRS_STATEMENT_ENDPOINT + "?agent=" + queryParam;
+		
+		Client client = ClientBuilder.newClient();
+		WebTarget webTarget = client.target(url);
+		Invocation.Builder invBuilder = webTarget.request(MediaType.APPLICATION_JSON);
+		invBuilder.header(HttpHeaders.AUTHORIZATION, LRS_CLIENT_AUTHORISATION);
+		invBuilder.header("X-Experience-API-Version", "1.0.3");
+		Response response = invBuilder.get();
+		String responceBody = response.readEntity(String.class);
+		
+		// TODO: Retrieve "more"
+		// TODO: Place this in learning locker service
+		
+		JSONObject responceJSON = new JSONObject(responceBody);
+		
+		JSONArray retVal = responceJSON.getJSONArray("statements");
 		
 		return retVal;
 	}
