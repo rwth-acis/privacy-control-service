@@ -14,6 +14,7 @@ import java.util.Random;
 import java.util.logging.Level;
 
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
@@ -100,7 +101,8 @@ public class PrivacyControlService extends RESTService {
 	public final static String LAS2PEER_GET_SERVICES_ENDPOINT = "http://las2peer-bootstrap:8080/las2peer/getOtherNodesInfo";
 	
 	public final static String LRS_ACTOR_ACCOUNT_HOMEPAGE = "https://moodle.tech4comp.dbis.rwth-aachen.de/";
-	public final static String LRS_STATEMENT_ENDPOINT = "https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements";
+	public final static String LRS_STATEMENT_QUERY_ENDPOINT = "https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements";
+	public final static String LRS_STATEMENT_DELETE_ENDPOINT = "https://lrs.tech4comp.dbis.rwth-aachen.de/api/v2/batchdelete/initialise";
 	public final static String LRS_CLIENT_AUTHORISATION = "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0";
 
 	private static ReadWriteRegistryClient registryClient;
@@ -1103,6 +1105,43 @@ public class PrivacyControlService extends RESTService {
 		return Response.ok().entity(processedStatements.toString()).build();
 	}
 	
+	@DELETE
+	@Path("/collected-data/{serviceid}/{courseid}")
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response deleteCollectedData(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID) {
+		if (!serviceInitialised) {
+			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String tokenUserID = auth.checkUserToken(access_token);
+		if (tokenUserID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(tokenUserID, Role.STUDENT))) {
+			return Response.status(403).build();
+		}
+		
+		String studentID = tokenUserID;
+		// Get pseudonym
+		String studentPseudonym = database.SelectStudentPseudonym(studentID, serviceID, courseID);
+		if (studentPseudonym == null) {
+			return Response.status(400).build();
+		}
+		
+		boolean result = deleteAllStudentPseudonymStatementsFromLRS(studentPseudonym);
+		if (result) {
+			return Response.ok().build();
+		} else {
+			return Response.serverError().entity("Could not reach LRS for deletion.").build();
+		}
+		
+		
+	}
+	
 	/////////////////////////////////////////////////////////////////////////////////
 	///                                Purpose                                    ///
 	/////////////////////////////////////////////////////////////////////////////////
@@ -1256,16 +1295,7 @@ public class PrivacyControlService extends RESTService {
 
 		logger.info("Done.");
 		return Response.ok().build();
-	}
-
-	@GET
-	@Path("/pseudonym/{input}")
-	@Produces(MediaType.APPLICATION_JSON)
-	public Response getPseudonym(@PathParam(value = "input") String input) {
-		Random random = new Random();
-		String hash = HashUtility.hash(input, String.valueOf(random.nextInt()));
-		return Response.ok(hash).build();
-	}
+	}	
 	
 	
 	/////////////////////////////////////////////////////////////////////////////////
@@ -1586,7 +1616,7 @@ public class PrivacyControlService extends RESTService {
 		account.put("homePage", LRS_ACTOR_ACCOUNT_HOMEPAGE);
 		main.put("account", account);
 		String queryParam = URLEncoder.encode(main.toString(), StandardCharsets.UTF_8);
-		String url = LRS_STATEMENT_ENDPOINT + "?agent=" + queryParam;
+		String url = LRS_STATEMENT_QUERY_ENDPOINT + "?agent=" + queryParam;
 		
 		Client client = ClientBuilder.newClient();
 		WebTarget webTarget = client.target(url);
@@ -1604,6 +1634,29 @@ public class PrivacyControlService extends RESTService {
 		JSONArray retVal = responceJSON.getJSONArray("statements");
 		
 		return retVal;
+	}
+	
+	private boolean deleteAllStudentPseudonymStatementsFromLRS(String studentPseudonym) {
+		JSONObject requestBody = new JSONObject();
+		JSONObject filterJSON = new JSONObject();
+		filterJSON.put("statement.actor.account.name", studentPseudonym);
+		requestBody.put("filter", filterJSON);
+		
+		JSONObject responceJSON = new JSONObject();
+		try {
+			Client client = ClientBuilder.newClient();
+			WebTarget webTarget = client.target(LRS_STATEMENT_DELETE_ENDPOINT);
+			Invocation.Builder invBuilder = webTarget.request(MediaType.APPLICATION_JSON);
+			invBuilder.header(HttpHeaders.AUTHORIZATION, LRS_CLIENT_AUTHORISATION);
+			Response response = invBuilder.post(Entity.entity(requestBody.toString(), MediaType.APPLICATION_JSON));
+			String responceBody = response.readEntity(String.class);
+			
+			responceJSON = new JSONObject(responceBody);
+		} catch (Exception e) {
+			return false;
+		}
+		
+		return !responceJSON.isEmpty();		
 	}
 	
 }

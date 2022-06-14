@@ -89,8 +89,6 @@ public class StatementUtility {
 			String timestamp = originalStatement.getString("timestamp");
 			coreStatement.put("timestamp", timestamp);
 		} catch (JSONException e) {
-			e.printStackTrace();
-			// TODO: add logger
 			return null;
 		}
 		
@@ -109,7 +107,6 @@ public class StatementUtility {
 			coreAccount.put("homePage", actorHomePage);
 			coreActor.put("account", coreAccount);
 		} catch (JSONException e) {
-			e.printStackTrace();
 			return null;
 		}
 		return coreActor;
@@ -127,7 +124,6 @@ public class StatementUtility {
 			coreDisplay.put(DISPLAY_LANGUAGE, verbName);
 			coreVerb.put("display", coreDisplay);
 		} catch (JSONException e) {
-			e.printStackTrace();
 			return null;
 		}
 		return coreVerb;
@@ -148,7 +144,6 @@ public class StatementUtility {
 			coreDefinition.put("name", coreName);
 			coreObject.put("definition", coreDefinition);			
 		} catch (JSONException e) {
-			e.printStackTrace();
 			return null;
 		}
 		return coreObject;
@@ -161,7 +156,6 @@ public class StatementUtility {
 			JSONObject accountJSON = actorJSON.getJSONObject("account");
 			retVal = accountJSON.getString("name");
 		} catch (JSONException e) {
-			e.printStackTrace();
 			return null;
 		}
 		return retVal;
@@ -174,7 +168,6 @@ public class StatementUtility {
 			JSONObject displayJSON = verbJSON.getJSONObject("display");
 			retVal = displayJSON.getString(DISPLAY_LANGUAGE);
 		} catch (JSONException e) {
-			e.printStackTrace();
 			return null;
 		}
 		return retVal;
@@ -188,7 +181,6 @@ public class StatementUtility {
 			JSONObject nameJSON = definitionJSON.getJSONObject("name");
 			retVal = nameJSON.getString(DISPLAY_LANGUAGE);
 		} catch (JSONException e) {
-			e.printStackTrace();
 			return null;
 		}
 		return retVal;
