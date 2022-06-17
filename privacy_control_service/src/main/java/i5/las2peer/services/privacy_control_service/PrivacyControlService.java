@@ -32,6 +32,7 @@ import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.checkerframework.common.reflection.qual.GetClass;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -744,6 +745,40 @@ public class PrivacyControlService extends RESTService {
 		String responseMessage = "Student with ID " + student.getEmail() + " succesfully added to course with ID " + serviceID
 				+ "|" + courseID;
 		return Response.ok(responseMessage).build();
+	}
+	
+	@GET
+	@Path("/student-in-course/{serviceid}/{courseid}/pseudonym")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response getStudentInCoursePseudonym(
+			@HeaderParam(AUTHENTICATION_HEADER_NAME) String access_token,
+			@PathParam(value = "serviceid") String serviceID,
+			@PathParam(value = "courseid") String courseID
+			) {
+		if (!serviceInitialised) {
+			return Response.status(500).entity("Service not initialised").build();
+		}
+		
+		// Authentication and authorisation
+		String tokenUserID = auth.checkUserToken(access_token);
+		if (tokenUserID == null) {
+			return Response.status(401).build();
+		}
+		if (!(auth.checkIfUserHasRole(tokenUserID, Role.STUDENT))) {
+			return Response.status(403).build();
+		}
+		
+		String studentID = tokenUserID;
+		// Get pseudonym
+		String studentPseudonym = database.SelectStudentPseudonym(studentID, serviceID, courseID);
+		if (studentPseudonym == null) {
+			return Response.status(400).build();
+		}
+		
+		JSONObject retVal = new JSONObject();
+		retVal.put("pseudonym", studentPseudonym);
+		
+		return Response.ok().entity(retVal.toString()).build();
 	}
 	
 	
