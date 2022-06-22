@@ -1402,7 +1402,7 @@ public class PrivacyControlService extends RESTService {
 			return null;
 		}
 		retVal.put("pseudonym", pseudonym);
-				
+		logger.info("Data processing request response is: " + retVal.toString());
 		return retVal.toString();
 	}
 	

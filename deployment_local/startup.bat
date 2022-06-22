@@ -12,4 +12,6 @@ docker-compose -f data-proxy.yml up -d
 #docker-compose -f mentoring-cockpit.yml up -d
 timeout /t 10
 docker-compose -f pcs-compose.yml up -d
+timeout /t 10
+docker-compose -f pcs-frontend.yml up -d
 pause
