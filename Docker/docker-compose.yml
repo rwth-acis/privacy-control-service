@@ -1,0 +1,29 @@
+version: "3"
+services:
+  ethereum:
+    image: rwthacis/monitored-geth-client
+    ports:
+      - 30303:30303/udp
+      - 30303:30303/tcp
+      - 8545:8545/tcp
+      - 8546:8546/tcp
+    environment:
+      GETH_VERBOSITY: "3"
+      ETHEREUM_DATA_DIR: /root/.ethereum/devchain
+    volumes:
+      - ethereumStoragePersistent:/root/.ethereum/devchain
+    command: /root/start.sh
+  mssql:
+    container_name: mssql
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    user: root
+    ports:
+      - "1433:1433"
+    environment:
+      SA_PASSWORD: "privacyIS#1important!"
+      ACCEPT_EULA: "Y"
+    volumes:
+      - mssql-data:/var/opt/mssql/data
+volumes:
+  ethereumStoragePersistent: {}
+  mssql-data:

@@ -1,0 +1,43 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    rasa-nlu:
+        hostname: rasa-nlu
+        networks:
+            - las2peernet
+        container_name: rasa-nlu
+        image: rasa/rasa
+        command: ["run", "--enable-api",  "-m",  "models"]
+        ports:
+            - "5005:5005"
+        volumes:
+            - "./rasa-models:/app/models"
+
+    yjs:
+        hostname: yjs
+        networks:
+            - las2peernet
+        container_name: yjs
+        image: registry.tech4comp.dbis.rwth-aachen.de/rwthacis/y-websockets-server:latest
+        ports:
+            - "1234:1234"
+
+
+    sbf-frontend:
+        hostname: sbf-frontend
+        networks:
+            - las2peernet
+        container_name: sbf-frontend
+        image: registry.tech4comp.dbis.rwth-aachen.de/rwthacis/sbf-utils:develop
+        environment:
+            WEBHOST: "http://localhost:8071"
+            YJS: "http://localhost:1234"
+            YJS_RESOURCE_PATH: "/socket.io"
+            OIDC_CLIENT_ID: "a7ece4a9-0a43-4fda-a33b-9c24a5a0d8f2"
+            RASA_NLU: "http://rasa-nlu:5005"
+            SBF_MANAGER: "http://localhost:32009/SBFManager"
+            PORT: "8071"
+        ports:
+            - "8071:8071"

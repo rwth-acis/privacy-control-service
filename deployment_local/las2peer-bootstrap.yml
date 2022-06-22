@@ -1,0 +1,27 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    las2peer-bootstrap:
+        hostname: las2peer-bootstrap
+        networks:
+            - las2peernet
+        container_name: las2peer-bootstrap
+        image: las2peer-bootstrap-ma_jovanovic
+        environment:
+            LAS2PEER_ETH_HOST: "ethereum:8545"
+            NODE_ID_SEED: "1"
+            LAS2PEER_PORT: "32010"
+            WALLET: "2"
+        ports:
+            - "32010:32010"
+            - "32010:32010/udp"
+            - "32009:8080"
+            - "32008:8001"
+        volumes:
+            - "las2peer-nodestorage:/app/las2peer/node-storage"
+            - "./registry-config.properties:/src/etc/i5.las2peer.registry.data.RegistryConfiguration.properties"
+
+volumes:
+    las2peer-nodestorage:

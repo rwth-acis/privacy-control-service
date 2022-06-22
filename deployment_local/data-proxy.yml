@@ -1,0 +1,34 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    data-proxy:
+        hostname: data-proxy
+        networks:
+            - las2peernet
+        container_name: data-proxy
+        image: mdp-local
+        environment:
+            MOODLE_DOMAIN: "https://moodle.tech4comp.dbis.rwth-aachen.de/"
+            MOODLE_TOKEN: "8baf4a70a34fcaae0c0868f04c37d97b"
+            COURSE_LIST: "17"
+            BOOTSTRAP: "las2peer-bootstrap:32010"
+            OPERATOR_LIST: alice@example.org
+        ports:
+            - "9011:9011"
+
+    learning-locker:
+       hostname: learning-locker
+       networks:
+           - las2peernet
+       container_name: learning-locker
+       image: registry.tech4comp.dbis.rwth-aachen.de/rwthacis/learning-locker-service:develop
+       environment:
+           LRS_DOMAIN: "https://lrs.tech4comp.dbis.rwth-aachen.de"
+           LRS_AUTH_ADMIN: "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0"
+           LRS_CLIENT_ID: 6294c696e303a53694e17e5b
+           BOOTSTRAP: "las2peer-bootstrap:32010"
+           LRS_AUTH: "Basic auth token"
+       ports:
+           - "9050:9050"

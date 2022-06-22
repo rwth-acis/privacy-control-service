@@ -1,0 +1,25 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    mentoring-cockpit:
+        hostname: mentoring-cockpit
+        networks:
+            - las2peernet
+        container_name: mentoring-cockpit
+        image: registry.tech4comp.dbis.rwth-aachen.de/rwthacis/mentoring-cockpit:sparql-url-fix
+        environment:
+            LRS_DOMAIN: https://lrs.tech4comp.dbis.rwth-aachen.de/api/statements/aggregate?
+            LRS_AUTH: Basic auth token
+            MYSQL_USER: root
+            MYSQL_PASSWORD: password
+            MYSQL_HOST: mobsos-mysql
+            MYSQL_PORT: 3306
+            MYSQL_DATABASE: LAS2PEERMON
+            LRS_CLIENT_URL: https://lrs.tech4comp.dbis.rwth-aachen.de/api/v2/client/
+            BOOTSTRAP: mobsos-data-processing:32011
+            LAS2PEER_PORT: "32025"
+            SPARQL_URL: https://triplestore.tech4comp.dbis.rwth-aachen.de/LMSData
+        ports:
+            - "9012:9012"

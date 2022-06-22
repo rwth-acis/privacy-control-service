@@ -1,0 +1,13 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+  pcs-frontend-service:
+    hostname: pcs-front
+    networks:
+      - las2peernet
+    container_name: pcs-front
+    image: pcs-front
+    ports:
+      - "4200:80"

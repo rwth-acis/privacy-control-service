@@ -1,0 +1,44 @@
+version: "2.2"
+networks: 
+    las2peernet:
+
+services:
+    pcs-mssql:
+        hostname: pcs-mssql
+        networks:
+            - las2peernet
+        container_name: pcs-mssql
+        image: mcr.microsoft.com/mssql/server:2019-latest
+        user: root
+        environment:
+            SA_PASSWORD: "privacyIS#1important!"
+            ACCEPT_EULA: "Y"
+        ports:
+            - "1433:1433"
+        volumes:
+            - mssql-data:/var/opt/mssql/data
+
+    privacy-control-service:
+        hostname: privacy-control-service
+        networks:
+            - las2peernet
+        container_name: privacy-control-service
+        depends_on: ["pcs-mssql"]
+        image: pcs-local
+        environment:
+            BOOTSTRAP: "las2peer-bootstrap:32010"
+            LAS2PEER_ETH_HOST: "ethereum:8545"
+            NODE_ID_SEED: "12"
+            LAS2PEER_PORT: "32016"
+            WALLET: "1"
+            #   SERVICE_EXTRA_ARGS: --observer
+        ports:
+            - "32016:32016"
+            - "32016:32016/udp"
+        volumes:
+            - "las2peer-nodestorage:/app/las2peer/node-storage"
+            - "./registry-config.properties:/src/etc/i5.las2peer.registry.data.RegistryConfiguration.properties"
+
+volumes:
+    las2peer-nodestorage:
+    mssql-data:
