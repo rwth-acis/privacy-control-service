@@ -12,7 +12,7 @@ services:
         environment:
             MOODLE_DOMAIN: "https://moodle.tech4comp.dbis.rwth-aachen.de/"
             MOODLE_TOKEN: "8baf4a70a34fcaae0c0868f04c37d97b"
-            COURSE_LIST: "17"
+            COURSE_LIST: "38"
             BOOTSTRAP: "las2peer-bootstrap:32010"
             OPERATOR_LIST: alice@example.org
         ports:
