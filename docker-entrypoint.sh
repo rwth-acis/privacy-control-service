@@ -20,6 +20,18 @@ function set_in_service_config {
     sed -i "s?${1}[[:blank:]]*=.*?${1}=${2}?g" ${SERVICE_PROPERTY_FILE}
 }
 
+set_in_service_config OIDC_USER_INFO_ENDPOINT ${OIDC_USER_INFO_ENDPOINT}
+set_in_service_config FIRST_DPO_EMAIL ${FIRST_DPO_EMAIL}
+set_in_service_config DB_URL ${DB_URL}
+set_in_service_config DB_PORT ${DB_PORT}
+set_in_service_config DB_NAME ${DB_NAME}
+set_in_service_config DB_USERNAME ${DB_USERNAME}
+set_in_service_config DB_PASSWORD ${DB_PASSWORD}
+set_in_service_config LAS2PEER_GET_SERVICES_ENDPOINT ${LAS2PEER_GET_SERVICES_ENDPOINT}
+set_in_service_config LRS_ACTOR_ACCOUNT_HOMEPAGE ${LRS_ACTOR_ACCOUNT_HOMEPAGE}
+set_in_service_config LRS_STATEMENT_QUERY_ENDPOINT ${LRS_STATEMENT_QUERY_ENDPOINT}
+set_in_service_config LRS_STATEMENT_DELETE_ENDPOINT ${LRS_STATEMENT_DELETE_ENDPOINT}
+set_in_service_config LRS_CLIENT_AUTHORISATION ${LRS_CLIENT_AUTHORISATION}
 
 # set defaults for optional service parameters
 [[ -z "${SERVICE_PASSPHRASE}" ]] && export SERVICE_PASSPHRASE='template'

@@ -11,28 +11,7 @@ contract DataProcessingPurposes {
         
     mapping (uint8 => Purpose) public purposeList;
     uint8[] public purposeIDs;
-/*     
-    function getAllPurposes() public view returns(
-        	uint8[] memory,
-        	string[] memory,
-        	string[] memory,
-        	uint16[] memory
-    ) {
-        uint8[] memory ids = new uint8[](purposeIDs.length);
-        string[] memory titles = new string[](purposeIDs.length);
-        string[] memory descs = new string[](purposeIDs.length);
-        uint16[] memory vers = new uint16[](purposeIDs.length);
-        
-        for (uint i = 0; i < purposeIDs.length; i++) {
-           ids[i] = purposeList[purposeIDs[i]].id;
-           titles[i] = purposeList[purposeIDs[i]].title;
-           descs[i] = purposeList[purposeIDs[i]].description;
-           vers[i] = purposeList[purposeIDs[i]].version;
-        }
-        
-        return (ids, titles, descs, vers);
-    }
-   */ 
+    
     function getPurpose(uint8 purposeID) public view returns(
         string memory, string memory, uint16
     ) {

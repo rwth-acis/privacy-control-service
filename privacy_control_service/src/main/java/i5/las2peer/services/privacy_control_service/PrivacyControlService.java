@@ -44,6 +44,7 @@ import org.web3j.tuples.generated.Tuple4;
 import com.google.common.hash.HashCode;
 
 import i5.las2peer.api.Context;
+import i5.las2peer.api.ManualDeployment;
 import i5.las2peer.api.security.Agent;
 import i5.las2peer.api.security.ServiceAgent;
 import i5.las2peer.logging.L2pLogger;
@@ -84,28 +85,29 @@ import model.Student;
 		+ "user data being transmitted in the tech4comp project.",
 		// termsOfService = "http://your-terms-of-service-url.com",
 		contact = @Contact(name = "Boris Jovanovic", email = "jovanovic.boris@rwth-aachen.de"), license = @License(name = "your software license name", url = "http://your-software-license-url.com")))
+@ManualDeployment
 @ServicePath("/pieces")
 public class PrivacyControlService extends RESTService {
 
 	public final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
-	// TODO: Put in environment variables
-	public final static String OIDC_USER_INFO_ENDPOINT = "https://auth.las2peer.org/auth/realms/main/protocol/openid-connect/userinfo";
-	// TODO: put in environment variable
-	public static final String FIRST_DPO_EMAIL = "jovanovic.boris@rwth-aachen.de";
+	
 	public static final String AUTHENTICATION_HEADER_NAME = "access_token";
 	
-	public final static String DB_URL = "pcs-mssql";
-	public final static int DB_PORT = 1433;
-	public final static String DB_NAME = "PrivacyServiceDB";
-	private final static String DB_USERNAME = "SA";
-	private final static String DB_PASSWORD = "privacyIS#1important!";
+	private String OIDC_USER_INFO_ENDPOINT;
+	private String FIRST_DPO_EMAIL;
 	
-	public final static String LAS2PEER_GET_SERVICES_ENDPOINT = "http://las2peer-bootstrap:8080/las2peer/getOtherNodesInfo";
+	private String DB_URL;
+	private int DB_PORT;
+	private String DB_NAME;
+	private String DB_USERNAME;
+	private String DB_PASSWORD;
 	
-	public final static String LRS_ACTOR_ACCOUNT_HOMEPAGE = "https://moodle.tech4comp.dbis.rwth-aachen.de/";
-	public final static String LRS_STATEMENT_QUERY_ENDPOINT = "https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements";
-	public final static String LRS_STATEMENT_DELETE_ENDPOINT = "https://lrs.tech4comp.dbis.rwth-aachen.de/api/v2/batchdelete/initialise";
-	public final static String LRS_CLIENT_AUTHORISATION = "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0";
+	private String LAS2PEER_GET_SERVICES_ENDPOINT;
+	
+	private String LRS_ACTOR_ACCOUNT_HOMEPAGE;
+	private String LRS_STATEMENT_QUERY_ENDPOINT;
+	private String LRS_STATEMENT_DELETE_ENDPOINT;
+	private String LRS_CLIENT_AUTHORISATION;
 
 	private static ReadWriteRegistryClient registryClient;
 	private static PrivacyConsentRegistry consentRegistry;
@@ -119,6 +121,7 @@ public class PrivacyControlService extends RESTService {
 	private static boolean serviceInitialised = false;
 
 	public PrivacyControlService() {
+		setFieldValues();
 	}
 	
 	@POST
