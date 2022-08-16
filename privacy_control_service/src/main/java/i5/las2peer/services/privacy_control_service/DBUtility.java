@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -54,26 +55,7 @@ public class DBUtility {
 	private PreparedStatement selectCoursesWithStudent;
 
 	
-	public static Connection getConnection() {
-		String connectionUrl =
-                "jdbc:sqlserver://" + DB_URL + ":" + DB_PORT + ";"
-                + "database=" + DB_NAME + ";"
-                + "user=" + DB_USERNAME + ";"
-                + "password=" + DB_PASSWORD + ";"
-                + "encrypt=true;"
-                + "trustServerCertificate=true;"
-                + "loginTimeout=30;";
-		Connection connection = null;
-		try {
-			connection = DriverManager.getConnection(connectionUrl);
-		} catch (SQLException e) {
-			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
-		}
-        
-        return connection;
-	}
-	
-	public boolean establishConnection(
+	public boolean establishSQLServerConnection(
 			String dbURL,
 			int dbPort,
 			String dbName,
@@ -92,6 +74,29 @@ public class DBUtility {
 			dbcon = DriverManager.getConnection(connectionUrl);
 		} catch (SQLException e) {
 			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
+			return false;
+		}
+		
+		return true;
+	}
+	
+	public boolean establishPostgresConnection(
+			String dbURL,
+			int dbPort,
+			String dbName,
+			String dbUsername,
+			String dbPassword
+			) {
+		String url = "jdbc:postgresql://" + dbURL + ":" + dbPort + "/" + dbName;
+		
+		Properties props = new Properties();
+		props.setProperty("user", dbUsername);
+		props.setProperty("password", dbPassword);
+		try {
+			dbcon = DriverManager.getConnection(url, props);
+		} catch (SQLException e) {
+			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
+			e.printStackTrace();
 			return false;
 		}
 		

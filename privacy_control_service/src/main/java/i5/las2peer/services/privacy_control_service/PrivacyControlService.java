@@ -124,6 +124,19 @@ public class PrivacyControlService extends RESTService {
 		setFieldValues();
 	}
 	
+	@GET
+	@Path("/dbcontry")
+	@Produces(MediaType.TEXT_PLAIN)
+	public Response tryDBConnect() {
+		database = new DBUtility();
+		boolean dbflag = database.establishPostgresConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
+		if (!dbflag) {
+			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
+			return Response.serverError().entity("Error while connecting to service's database").build();
+		}
+		return Response.ok("All good").build();
+	}
+	
 	@POST
 	@Path("/init")
 	@Produces(MediaType.TEXT_PLAIN)
@@ -167,7 +180,7 @@ public class PrivacyControlService extends RESTService {
 		logger.info("Blockchain registries loaded.");
 
 		database = new DBUtility();
-		boolean dbflag = database.establishConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
+		boolean dbflag = database.establishPostgresConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
 		if (!dbflag) {
 			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
 			return Response.serverError().entity("Error while connecting to service's database").build();
