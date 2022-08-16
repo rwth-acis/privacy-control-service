@@ -110,21 +110,103 @@ public class DBUtility {
 			return false;
 		}
 		
+		ArrayList<String> ddl_commands = new ArrayList<String>();
+		
+		
 		// DPO
-		String ddl_text = "CREATE TABLE IF NOT EXISTS DPO ("
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS DPO ("
 				+ " email varchar(50) NOT NULL ,"
 				+ " CONSTRAINT PK_72 PRIMARY KEY (email)"
-				+ ");";
+				+ ");");
+		
+		//Manager
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS Manager ("
+				+ " Email varchar(50) NOT NULL ,"
+				+ " Name  varchar(50) NULL ,"
+				+ " CONSTRAINT PK_65 PRIMARY KEY (Email)"
+				+ ");");
+		
+		// Service
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS Service ("
+				+ " id        varchar(100) NOT NULL ,"
+				+ " Name      varchar(50) NULL ,"
+				+ " ManagerID varchar(50) NOT NULL ,"
+				+ " CONSTRAINT PK_5 PRIMARY KEY (id),"
+				+ " CONSTRAINT FK_67 FOREIGN KEY (ManagerID)  REFERENCES Manager(Email)"
+				+ ");");
+		
+		// Student
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS Student ("
+				+ " Email varchar(50) NOT NULL ,"
+				+ " Name  varchar(50) NULL ,"
+				+ " CONSTRAINT PK_19 PRIMARY KEY (Email)"
+				+ ");");
+		
+		// Purpose
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS Purpose ("
+				+ " ID          int NOT NULL ,"
+				+ " Title       varchar(50) NOT NULL ,"
+				+ " Description varchar(1000) NOT NULL ,"
+				+ " Version     int NOT NULL ,"
+				+ " CONSTRAINT PK_37 PRIMARY KEY (ID)"
+				+ ");");
+		
+		// Course
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS Course ("
+				+ " id          varchar(50) NOT NULL ,"
+				+ " ServiceID   varchar(100) NOT NULL ,"
+				+ " Name        varchar(50) NULL ,"
+				+ " Description varchar(500) NULL ,"
+				+ " CONSTRAINT PK_8 PRIMARY KEY (id, ServiceID),"
+				+ " CONSTRAINT CourseService FOREIGN KEY (ServiceID)  REFERENCES Service(id)"
+				+ ");");
+		
+		// StudentInCourse
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS StudentInCourse ("
+				+ " StudentID varchar(50) NOT NULL ,"
+				+ " CourseID  varchar(50) NOT NULL ,"
+				+ " ServiceID varchar(100) NOT NULL ,"
+				+ " Pseudonym varchar(70) NOT NULL ,"
+				+ " CONSTRAINT PK_29 PRIMARY KEY (StudentID, CourseID, ServiceID),"
+				+ " CONSTRAINT SICCourse FOREIGN KEY (CourseID, ServiceID)  REFERENCES Course(id, ServiceID),"
+				+ " CONSTRAINT SICStudent FOREIGN KEY (StudentID)  REFERENCES Student(Email)"
+				+ ");");
+		
+		// PurposeInCourse
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS PurposeInCourse ("
+				+ " CourseID  varchar(50) NOT NULL ,"
+				+ " ServiceID varchar(100) NOT NULL ,"
+				+ " PurposeID int NOT NULL ,"
+				+ " CONSTRAINT PK_46 PRIMARY KEY (CourseID, ServiceID, PurposeID),"
+				+ " CONSTRAINT PICCourse FOREIGN KEY (CourseID, ServiceID)  REFERENCES Course(id, ServiceID),"
+				+ " CONSTRAINT PICPurpose FOREIGN KEY (PurposeID)  REFERENCES Purpose(ID)"
+				+ ");");
+		
+		// Consent
+		ddl_commands.add("CREATE TABLE IF NOT EXISTS Consent ("
+				+ " StudentID   varchar(50) NOT NULL ,"
+				+ " CourseID    varchar(50) NOT NULL ,"
+				+ " ServiceID   varchar(100) NOT NULL ,"
+				+ " CourseID_1  varchar(50) NOT NULL ,"
+				+ " ServiceID_1 varchar(100) NOT NULL ,"
+				+ " PurposeID   int NOT NULL ,"
+				+ " Timestamp   timestamp(3) NOT NULL ,"
+				+ " CONSTRAINT PK_56 PRIMARY KEY (StudentID, CourseID, ServiceID, CourseID_1, ServiceID_1, PurposeID),"
+				+ " CONSTRAINT ConsentPIC FOREIGN KEY (CourseID_1, ServiceID_1, PurposeID)  REFERENCES PurposeInCourse(CourseID, ServiceID, PurposeID),"
+				+ " CONSTRAINT ConsentSIC FOREIGN KEY (StudentID, CourseID, ServiceID)  REFERENCES StudentInCourse(StudentID, CourseID, ServiceID)"
+				+ ");");
 		
 		try {
-			Statement stmt = dbcon.createStatement();
-			stmt.executeUpdate(ddl_text);
-			stmt.close();
+			for (String ddl : ddl_commands) {
+				Statement stmt = dbcon.createStatement();
+				stmt.executeUpdate(ddl);
+				stmt.close();
+			}
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+			return false;
 		}
-		
 		
 		return true;
 	}
