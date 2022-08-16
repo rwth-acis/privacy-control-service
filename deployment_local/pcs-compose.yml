@@ -34,11 +34,11 @@ services:
             OIDC_USER_INFO_ENDPOINT: "https://auth.las2peer.org/auth/realms/main/protocol/openid-connect/userinfo"
             FIRST_DPO_EMAIL: "jovanovic.boris@rwth-aachen.de"
             AUTHENTICATION_HEADER_NAME: "access_token"
-            DB_URL: "pcs-mssql"
-            DB_PORT: 1433
-            DB_NAME: "PrivacyServiceDB"
-            DB_USERNAME: "SA"
-            DB_PASSWORD: "privacyIS#1important!"
+            DB_URL: "postgresdb.tech4comp.dbis.rwth-aachen.de"
+            DB_PORT: 5432
+            DB_NAME: "test"
+            DB_USERNAME: "tech4comp@tech4comp.de"
+            DB_PASSWORD: "481ixX2Z5TjwxbpyynJZ"
             LAS2PEER_GET_SERVICES_ENDPOINT: "http://las2peer-bootstrap:8080/las2peer/getOtherNodesInfo"
             LRS_ACTOR_ACCOUNT_HOMEPAGE: "https://moodle.tech4comp.dbis.rwth-aachen.de/"
             LRS_STATEMENT_QUERY_ENDPOINT: "https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements"

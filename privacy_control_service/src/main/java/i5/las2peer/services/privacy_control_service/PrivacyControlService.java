@@ -134,6 +134,9 @@ public class PrivacyControlService extends RESTService {
 			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
 			return Response.serverError().entity("Error while connecting to service's database").build();
 		}
+		
+		database.setupDatabaseTables();
+		
 		return Response.ok("All good").build();
 	}
 	

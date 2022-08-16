@@ -27,3 +27,6 @@ archiva_credentials.xml
 
 # Ignore Gradle build output directory
 build
+
+# Ignore token stuff
+/deployment_local/

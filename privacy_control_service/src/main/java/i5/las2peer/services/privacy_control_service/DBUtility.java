@@ -5,6 +5,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -99,6 +100,31 @@ public class DBUtility {
 			e.printStackTrace();
 			return false;
 		}
+		
+		return true;
+	}
+	
+	public boolean setupDatabaseTables() {
+		if (dbcon == null) {
+			PrivacyControlService.logger.severe("Must first establish database connection.");
+			return false;
+		}
+		
+		// DPO
+		String ddl_text = "CREATE TABLE IF NOT EXISTS DPO ("
+				+ " email varchar(50) NOT NULL ,"
+				+ " CONSTRAINT PK_72 PRIMARY KEY (email)"
+				+ ");";
+		
+		try {
+			Statement stmt = dbcon.createStatement();
+			stmt.executeUpdate(ddl_text);
+			stmt.close();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		
 		return true;
 	}
