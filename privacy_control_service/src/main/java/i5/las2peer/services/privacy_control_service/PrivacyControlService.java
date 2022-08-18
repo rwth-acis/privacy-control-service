@@ -151,7 +151,7 @@ public class PrivacyControlService extends RESTService {
 			return Response.ok("Service already initialised.").build();
 		}
 		
-		logger.info(context.getHeaderString("access_token"));
+		logger.info(context.getHeaderString("access-token"));
 		// TODO: Authenticate the person doing the init. Can't do it with DPO check because of timeline.
 
 		L2pLogger.setGlobalConsoleLevel(Level.INFO);
