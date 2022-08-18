@@ -93,7 +93,7 @@ public class PrivacyControlService extends RESTService {
 
 	public final static L2pLogger logger = L2pLogger.getInstance(PrivacyControlService.class.getName());
 	
-	public static final String AUTHENTICATION_HEADER_NAME = "access_token";
+	public static final String AUTHENTICATION_HEADER_NAME = "auth_token";
 	
 	private String OIDC_USER_INFO_ENDPOINT;
 	private String FIRST_DPO_EMAIL;
