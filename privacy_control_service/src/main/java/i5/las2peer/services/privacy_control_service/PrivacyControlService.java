@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.logging.Level;
 
 import javax.ws.rs.Consumes;
@@ -31,6 +32,7 @@ import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
 import org.checkerframework.common.reflection.qual.GetClass;
@@ -235,6 +237,21 @@ public class PrivacyControlService extends RESTService {
 		
 		JSONArray roles = auth.getAllRoles(userID);
 		return Response.ok().entity(roles.toString()).build();
+	}
+	
+	@GET
+	@Path("/test-headers")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response testHeaders(@javax.ws.rs.core.Context HttpHeaders headers) {
+		MultivaluedMap<String,String> head_map = headers.getRequestHeaders();
+		Set<String> head_set = head_map.keySet();
+		
+		JSONObject retVal = new JSONObject();
+		for (String header : head_set) {
+			retVal.put(header, head_map.get(header).get(0));
+		}
+		
+		return Response.ok().build();
 	}
 		
 
