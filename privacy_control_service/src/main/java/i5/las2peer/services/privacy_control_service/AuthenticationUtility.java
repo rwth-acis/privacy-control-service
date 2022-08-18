@@ -95,6 +95,7 @@ public class AuthenticationUtility {
 		} catch (JSONException e) {
 			logger.warning("Error while authenticating user token: "
 					+ "Could not get email from OIDC response.");
+			logger.warning(oidcResponse);
 			return null;
 		}
 		

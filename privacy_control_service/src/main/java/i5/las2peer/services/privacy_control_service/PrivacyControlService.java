@@ -1682,7 +1682,7 @@ public class PrivacyControlService extends RESTService {
 		String responceBody = response.readEntity(String.class);
 		
 		// TODO: Retrieve "more"
-		// TODO: Place this in learning locker service
+		// TODO: Place this in learning locker service?
 		
 		JSONObject responceJSON = new JSONObject(responceBody);
 		
