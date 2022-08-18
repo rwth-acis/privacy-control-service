@@ -251,7 +251,7 @@ public class PrivacyControlService extends RESTService {
 			retVal.put(header, head_map.get(header).get(0));
 		}
 		
-		return Response.ok().build();
+		return Response.ok(retVal.toString()).build();
 	}
 		
 
