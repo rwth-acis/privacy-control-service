@@ -225,7 +225,7 @@ public class PrivacyControlService extends RESTService {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
-		
+		logger.warning("HEADER NAME: " + AUTHENTICATION_HEADER_NAME);
 		logger.warning("ToKeN Is: " + access_token);
 		// Authentication and authorisation
 		String userID = auth.checkUserToken(access_token);
