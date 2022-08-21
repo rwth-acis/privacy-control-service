@@ -50,14 +50,6 @@ public class StatementUtility {
 			retVal.put("object", objectJSON.get("id"));
 		}
 		
-		// Time and date
-		if (statement.has("timestamp")) {
-			retVal.put("timestamp", statement.get("timestamp"));
-		}
-		else {
-			retVal.put("timestamp", statement.get("stored"));
-		}
-		
 		return retVal;
 	}
 	
