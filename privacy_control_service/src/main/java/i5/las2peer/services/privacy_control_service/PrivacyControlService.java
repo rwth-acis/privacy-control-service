@@ -47,6 +47,7 @@ import com.google.common.hash.HashCode;
 
 import i5.las2peer.api.Context;
 import i5.las2peer.api.ManualDeployment;
+import i5.las2peer.api.logging.MonitoringEvent;
 import i5.las2peer.api.security.Agent;
 import i5.las2peer.api.security.ServiceAgent;
 import i5.las2peer.logging.L2pLogger;
@@ -1444,86 +1445,42 @@ public class PrivacyControlService extends RESTService {
 		return retVal.toString();
 	}
 	
+	//TODO: Remove
 	@POST
-	@Path("/forward-statement")
-	@Consumes(MediaType.APPLICATION_JSON)
-	public Response forwardStatement(InputStream input) {
+	@Path("/test-forward-statement")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Response forwardStatement() {
 		if (!serviceInitialised) {
-			return Response.status(500).entity("Service not initialised").build();
+			return Response.serverError().build();
 		}
-		// TODO: get service id from service agent info
-		String serviceID = "NEVERPUTSPACE";
+		String messageString = "{"
+				+ "  \"actor\": {"
+				+ "    \"name\": \"Sally Glider\","
+				+ "    \"mbox\": \"mailto:sally@example.com\""
+				+ "  },\r\n"
+				+ "  \"verb\": {"
+				+ "    \"id\": \"http://adlnet.gov/expapi/verbs/experienced\","
+				+ "    \"display\": { \"en-US\": \"experienced\" }"
+				+ "  },"
+				+ "  \"object\": {"
+				+ "    \"id\": \"http://example.com/activities/solo-hang-gliding\","
+				+ "    \"definition\": {"
+				+ "      \"name\": { \"en-US\": \"Solo Hang Gliding\" }"
+				+ "    }"
+				+ "  }"
+				+ "}";
 		
-		JSONTokener tokener = new JSONTokener(input);
-		JSONObject entryJSON = null;
-		JSONObject statementJSON = null;
-		int purposeID;
-		String courseID;
-		try {
-			entryJSON = new JSONObject(tokener);
-			statementJSON = entryJSON.getJSONObject("statement");
-			purposeID = entryJSON.getInt("purpose");
-			courseID = entryJSON.getString("course");
-		} catch (JSONException e) {
-			//logger.warning("Could not parse JSON in POST Consent request.");
-			e.printStackTrace();
-			return Response.status(400).entity("Invalid JSON.").build();
-		}
+		JSONObject statement = statUtil.parseAndFormat(messageString);
+		JSONArray tokens = new JSONArray();
+		tokens.put("isthisatoken");
+		JSONObject message = new JSONObject();
+		message.put("statement", statement);
+		message.put("tokens", tokens);		
 		
-		String userID = statUtil.getActorEmail(statementJSON);
-		if (userID == null) {
-			return Response.status(400).entity("Invalid xAPI Statement: Missing actor account email.").build();
-		}
+		Context context = Context.get();
+		context.monitorEvent(MonitoringEvent.SERVICE_CUSTOM_MESSAGE_2, message.toString());
 		
-		// Check user consent
-		List<Integer> purposeIDs;
-		List<Integer> purposeVersions;
-		try {
-			Tuple3<List<Integer>, List<Integer>, BigInteger> tuple = 
-					getConsent(userID, serviceID, courseID);
-			purposeIDs = tuple.component1();
-			purposeVersions = tuple.component2();
-		} catch (Exception e) {
-			return Response.serverError().entity("Blockchain issue.").build();
-		}
-		
-		int purposeIndex = purposeIDs.indexOf(purposeID);
-		if (purposeIndex < 0) {
-			// The user did not give permission
-			return Response.status(403).entity("User did not give consent.").build();
-		}
-		int purposeVersion = purposeVersions.get(purposeIndex);
-		
-		logger.info("Attempting to log entry in xAPIVerificationRegistry:");
-		// Log to verification registry
-		byte[] bUserID = HashUtility.hashForBlockchainByte(userID);
-		logger.info("User ID and hash: " + userID + " -> " + HashCode.fromBytes(bUserID));
-		String data = statUtil.extractCoreStatement(statementJSON).toString();
-		byte[] bDataHash = HashUtility.hashForBlockchainByte(data);
-		logger.info("Data hash: " + bDataHash.toString());
-		BigInteger bPurposeCode = BigInteger.valueOf(purposeID);
-		logger.info("Purpose Code: " + bPurposeCode);
-		BigInteger bPurposeVersion = BigInteger.valueOf(purposeVersion);
-		logger.info("Purpose Version: " + bPurposeVersion);
-		
-		try {
-			verificationRegisrty.enterLogEntry(bUserID, bDataHash, bPurposeCode, bPurposeVersion).send();
-		} catch (Exception e) {
-			logger.severe("Could not execute EnterLogEntry of xAPIVerificationRegistry.");
-			e.printStackTrace();
-			return Response.serverError().entity("Blockchain issue.").build();
-		}
-
-		
-		// Forward to LRS (through learning locker)
-		Client lrsClient = ClientBuilder.newClient();
-		WebTarget target = lrsClient.target("https://lrs.tech4comp.dbis.rwth-aachen.de/data/xAPI/statements");
-		Invocation.Builder invocationBuilder = target.request();
-		invocationBuilder.header(HttpHeaders.AUTHORIZATION, "Basic YzQ1NWJkYzhjNTQ3NTUxYzJmZTNhZmRiM2IxYjlmNTExNzM2OTlhMTpjOGM0OGIxYWFkYjY0MmMzMmQ3ODk4OWNlNjI4NGJlOGIxN2ZhYWQ0");
-		invocationBuilder.header("X-Experience-API-Version", "1.0.3");
-		Response postResponse = invocationBuilder.post(Entity.entity(statementJSON.toString(), MediaType.APPLICATION_JSON));
-		logger.info("Done.");
-		return Response.ok().build();
+		return Response.ok(message.toString()).build();
 	}
 	
 	

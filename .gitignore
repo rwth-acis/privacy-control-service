@@ -30,3 +30,4 @@ build
 
 # Ignore token stuff
 /deployment_local/
+\deployment_local\

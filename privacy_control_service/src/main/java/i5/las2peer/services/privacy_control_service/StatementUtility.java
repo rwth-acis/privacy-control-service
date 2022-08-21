@@ -1,19 +1,11 @@
 package i5.las2peer.services.privacy_control_service;
 
-import static org.junit.Assert.fail;
-
-import javax.ws.rs.core.Response;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 
 public class StatementUtility {
 	public static final String DISPLAY_LANGUAGE = "en-US";
-	
-	private JSONObject statement1;
-	private JSONObject statement2;
-	private JSONObject statement3;
 	
 	public JSONObject parseAndFormat(String rawStatement) {
 		JSONTokener tokener = new JSONTokener(rawStatement);
