@@ -1453,7 +1453,7 @@ public class PrivacyControlService extends RESTService {
 		if (!serviceInitialised) {
 			return Response.serverError().build();
 		}
-		String messageString = "{"
+		String messageString = "{\"statement\":{"
 				+ "  \"actor\": {"
 				+ "    \"name\": \"Sally Glider\","
 				+ "    \"mbox\": \"mailto:sally@example.com\""
@@ -1468,13 +1468,11 @@ public class PrivacyControlService extends RESTService {
 				+ "      \"name\": { \"en-US\": \"Solo Hang Gliding\" }"
 				+ "    }"
 				+ "  }"
-				+ "}";
+				+ "}}";
 		
-		JSONObject statement = statUtil.parseAndFormat(messageString);
+		JSONObject message = statUtil.parseAndFormat(messageString);
 		JSONArray tokens = new JSONArray();
 		tokens.put("isthisatoken");
-		JSONObject message = new JSONObject();
-		message.put("statement", statement);
 		message.put("tokens", tokens);		
 		
 		Context context = Context.get();
