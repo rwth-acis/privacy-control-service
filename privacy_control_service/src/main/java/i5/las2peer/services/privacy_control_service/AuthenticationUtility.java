@@ -75,7 +75,6 @@ public class AuthenticationUtility {
 	 */
 	public String checkUserToken(String token) {
 		// Make call to OIDC
-		logger.warning("TOKEN IS: " + token);
 		Client client = ClientBuilder.newClient();
 		WebTarget webTarget = client.target(userInfoEndpoint);
 		Invocation.Builder invBuilder = webTarget.request(MediaType.APPLICATION_JSON);

@@ -15,6 +15,7 @@ services:
             COURSE_LIST: "38"
             BOOTSTRAP: "las2peer-bootstrap:32010"
             OPERATOR_LIST: alice@example.org
+            USES_PRIVACY_CONTROL: true
         ports:
             - "9011:9011"
 

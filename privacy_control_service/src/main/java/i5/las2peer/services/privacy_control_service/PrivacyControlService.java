@@ -132,7 +132,7 @@ public class PrivacyControlService extends RESTService {
 	@Produces(MediaType.TEXT_PLAIN)
 	public Response tryDBConnect() {
 		database = new DBUtility();
-		boolean dbflag = database.establishPostgresConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
+		boolean dbflag = database.establishSQLServerConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
 		if (!dbflag) {
 			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
 			return Response.serverError().entity("Error while connecting to service's database").build();
@@ -152,7 +152,7 @@ public class PrivacyControlService extends RESTService {
 			return Response.ok("Service already initialised.").build();
 		}
 		
-		logger.info(context.getHeaderString("access-token"));
+		logger.info(context.getHeaderString(AUTHENTICATION_HEADER_NAME));
 		// TODO: Authenticate the person doing the init. Can't do it with DPO check because of timeline.
 
 		L2pLogger.setGlobalConsoleLevel(Level.INFO);
@@ -186,7 +186,7 @@ public class PrivacyControlService extends RESTService {
 		logger.info("Blockchain registries loaded.");
 
 		database = new DBUtility();
-		boolean dbflag = database.establishPostgresConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
+		boolean dbflag = database.establishSQLServerConnection(DB_URL, DB_PORT, DB_NAME, DB_USERNAME, DB_PASSWORD);
 		if (!dbflag) {
 			PrivacyControlService.logger.severe("Could not connect to PrivacyControlService database.");
 			return Response.serverError().entity("Error while connecting to service's database").build();
@@ -228,8 +228,6 @@ public class PrivacyControlService extends RESTService {
 		if (!serviceInitialised) {
 			return Response.status(500).entity("Service not initialised").build();
 		}
-		logger.warning("HEADER NAME: " + AUTHENTICATION_HEADER_NAME);
-		logger.warning("ToKeN Is: " + access_token);
 		// Authentication and authorisation
 		String userID = auth.checkUserToken(access_token);
 		if (userID == null) {
@@ -1507,11 +1505,13 @@ public class PrivacyControlService extends RESTService {
 		JSONObject statementJSON = null;
 		int purposeID;
 		String courseID;
+		JSONArray llsTokens = null;
 		try {
 			entryJSON = new JSONObject(tokener);
 			statementJSON = entryJSON.getJSONObject("statement");
 			purposeID = entryJSON.getInt("purpose");
 			courseID = entryJSON.getString("course");
+			llsTokens = entryJSON.getJSONArray("tokens");
 		} catch (JSONException e) {
 			logger.warning("Could not parse JSON body of Forward Statement request.");
 			return false;
@@ -1572,6 +1572,15 @@ public class PrivacyControlService extends RESTService {
 		}
 		
 		// Forward to LRS (through learning locker)
+		// TODO: Implement the advanced MDProxy features (default store, etc)
+		logger.info("Attempting to forward to LearningLockerService with token: " + llsTokens.getString(0));
+		JSONObject llsMessage = new JSONObject();
+		llsMessage.put("statement", statementJSON);
+		llsMessage.put("tokens", llsTokens);
+		
+		Context.get().monitorEvent(MonitoringEvent.SERVICE_CUSTOM_MESSAGE_2, llsMessage.toString());
+		
+		/*
 		// TODO: Make call to mobSOS instead of this
 		// TODO: Each service+course should have their own store! <- NOT NECESSARY: each student+course+store has its own pseudonym
 		Client lrsClient = ClientBuilder.newClient();
@@ -1581,6 +1590,7 @@ public class PrivacyControlService extends RESTService {
 		invocationBuilder.header("X-Experience-API-Version", "1.0.3");
 		Response postResponse = invocationBuilder.post(Entity.entity(statementJSON.toString(), MediaType.APPLICATION_JSON));
 		logger.info("Done.");
+		*/
 		return true;
 	}
 	
@@ -1646,6 +1656,11 @@ public class PrivacyControlService extends RESTService {
 		String queryParam = URLEncoder.encode(main.toString(), StandardCharsets.UTF_8);
 		String url = LRS_STATEMENT_QUERY_ENDPOINT + "?agent=" + queryParam;
 		
+		logger.info("Home page is: " + LRS_ACTOR_ACCOUNT_HOMEPAGE);
+		logger.info("Pseudonym is: " + studentPseudonym);
+		logger.info("URL is: " + url);
+		logger.info("Authorisation is: " + LRS_CLIENT_AUTHORISATION);
+		
 		Client client = ClientBuilder.newClient();
 		WebTarget webTarget = client.target(url);
 		Invocation.Builder invBuilder = webTarget.request(MediaType.APPLICATION_JSON);
@@ -1659,7 +1674,12 @@ public class PrivacyControlService extends RESTService {
 		
 		JSONObject responceJSON = new JSONObject(responceBody);
 		
-		JSONArray retVal = responceJSON.getJSONArray("statements");
+		JSONArray retVal = new JSONArray();
+		try {
+			retVal = responceJSON.getJSONArray("statements");
+		} catch (JSONException e) {
+			logger.severe("Error in statement retrieval: " + responceBody);
+		}
 		
 		return retVal;
 	}

@@ -35,12 +35,12 @@ dependencies {
 	implementation("com.google.guava:guava:31.1-jre")
 	
 	// https://mvnrepository.com/artifact/com.microsoft.sqlserver/mssql-jdbc
-	//implementation group: 'com.microsoft.sqlserver', name: 'mssql-jdbc', version: '10.2.0.jre17'
+	implementation group: 'com.microsoft.sqlserver', name: 'mssql-jdbc', version: '10.2.0.jre17'
 	
 	//compile group: 'org.mybatis', name: 'mybatis', version: '3.4.1'
 	
 	// https://mvnrepository.com/artifact/org.postgresql/postgresql
-	implementation group: 'org.postgresql', name: 'postgresql', version: '9.3-1100-jdbc4'
+	//implementation group: 'org.postgresql', name: 'postgresql', version: '9.3-1100-jdbc4'
 }
 
 configurations {
